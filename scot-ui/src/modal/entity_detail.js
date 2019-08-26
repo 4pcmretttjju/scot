@@ -2,15 +2,16 @@ import React from "react";
 import $ from "jquery";
 import SelectedEntry from "../detail/selected_entry.js";
 import Inspector from "react-inspector";
-import Button from 'react-bootstrap/lib/Button'
-import Tabs from 'react-bootstrap/lib/Tabs'
-import Tab from 'react-bootstrap/lib/Tab'
-import AddEntry from '../components/add_entry'
-import Draggable from 'react-draggable'
-import DetailDataStatus from '../components/detail_data_status';
-import { Link } from 'react-router-dom'
-import Marker from '../components/marker'
-import Frame from 'react-frame-component';
+import Button from "react-bootstrap/lib/Button";
+import Tabs from "react-bootstrap/lib/Tabs";
+import Tab from "react-bootstrap/lib/Tab";
+import AddEntry from "../components/add_entry";
+import Draggable from "react-draggable";
+import DetailDataStatus from "../components/detail_data_status";
+import { Link } from "react-router-dom";
+import Marker from "../components/marker";
+import Frame from "react-frame-component";
+import { get_data } from "../utils/XHR";
 
 let startX;
 let startY;
@@ -49,12 +50,13 @@ export default class EntityDetail extends React.Component {
     };
   }
 
-  componentWillMount = () => {
-
-  };
+  componentWillMount = () => {};
 
   onLoad = () => {
-    if (document.getElementById("iframe_" + this.props.id) !== undefined && document.getElementById("iframe_" + this.props.id) !== null) {
+    if (
+      document.getElementById("iframe_" + this.props.id) !== undefined &&
+      document.getElementById("iframe_" + this.props.id) !== null
+    ) {
       if (
         document.getElementById("iframe_" + this.props.id).contentDocument
           .readyState === "complete"
@@ -74,14 +76,14 @@ export default class EntityDetail extends React.Component {
           }
         }
         setTimeout(
-          function () {
+          function() {
             if (
               document.getElementById("iframe_" + this.props.id) !== undefined
             ) {
               document
                 .getElementById("iframe_" + this.props.id)
                 .contentWindow.requestAnimationFrame(
-                  function () {
+                  function() {
                     let newheight;
                     newheight = document.getElementById(
                       "iframe_" + this.props.id
@@ -104,7 +106,6 @@ export default class EntityDetail extends React.Component {
   };
 
   componentDidMount = () => {
-
     this.setState({ isMounted: true });
     let currentTabArray = this.state.tabs;
     let valueClicked = this.props.entityvalue;
@@ -114,14 +115,14 @@ export default class EntityDetail extends React.Component {
           type: "GET",
           url: "scot/api/v2/" + this.props.entitytype + "/byname",
           data: { name: valueClicked },
-          success: function (result) {
+          success: function(result) {
             let entityid = result.id;
             if (this.state.isMounted) {
               this.setState({ entityid: entityid });
               $.ajax({
                 type: "GET",
                 url: "scot/api/v2/" + this.props.entitytype + "/" + entityid,
-                success: function (result) {
+                success: function(result) {
                   //this.setState({entityData:result})
                   let newTab = {
                     data: result,
@@ -139,10 +140,13 @@ export default class EntityDetail extends React.Component {
                       initialLoad: true,
                       processedIds: entityidsarray
                     });
-                    this.props.createCallback(this.props.entityid, this.updated);
+                    this.props.createCallback(
+                      this.props.entityid,
+                      this.updated
+                    );
                   }
                 }.bind(this),
-                error: function (data) {
+                error: function(data) {
                   this.props.errorToggle(
                     "failed to get entity detail information",
                     data
@@ -151,7 +155,7 @@ export default class EntityDetail extends React.Component {
               });
             }
           }.bind(this),
-          error: function (data) {
+          error: function(data) {
             this.props.errorToggle(
               "failed to get entity detail id information ",
               data
@@ -168,7 +172,7 @@ export default class EntityDetail extends React.Component {
           $.ajax({
             type: "GET",
             url: "scot/api/v2/" + this.props.entitytype + "/" + id[i],
-            success: function (result) {
+            success: function(result) {
               //this.setState({entityData:result})
               let newTab = {
                 data: result,
@@ -189,7 +193,7 @@ export default class EntityDetail extends React.Component {
                 this.props.createCallback(this.props.entityid, this.updated);
               }
             }.bind(this),
-            error: function (data) {
+            error: function(data) {
               this.props.errorToggle(
                 "failed to get entity detail information",
                 data
@@ -238,11 +242,9 @@ export default class EntityDetail extends React.Component {
     window.addEventListener("resize", this.containerHeightAdjust);
     this.onLoad();
 
-
-
-    $("iframe").each(function (index, ifr) {
+    $("iframe").each(function(index, ifr) {
       //requestAnimationFrame waits for the frame to be rendered (allowing the iframe to fully render before excuting the next bit of code!!!
-      ifr.contentWindow.requestAnimationFrame(function () {
+      ifr.contentWindow.requestAnimationFrame(function() {
         if (ifr.contentDocument != null) {
           let ifrContents = $(ifr).contents();
           //This makes all href point to blank so they don't reload the iframe
@@ -250,14 +252,170 @@ export default class EntityDetail extends React.Component {
             .find("a")
             .attr("target", "_blank");
           //Copies href to a new attribute, url, before we make href an anchor (so it doesn't go anywhere when clicked)
-          ifrContents.find("a").each(function (index, a) {
+          ifrContents.find("a").each(function(index, a) {
             let url = $(a).attr("href");
             $(a).attr("url", url);
           });
         }
       });
     });
-    // this.props.watcher();
+
+    // this.setState({ isMounted: true });
+    // let currentTabArray = this.state.tabs;
+    // let valueClicked = this.props.entityvalue;
+    // if (
+    //   this.props.entitytype !== "source" &&
+    //   this.props.entitytype !== "entry"
+    // ) {
+    //   if (this.state.entityid === undefined || isNaN(this.state.entityid)) {
+    //     let endpoint = `scot/api/v2/${this.props.entitytype}"/byname`;
+    //     let params = { name: valueClicked };
+    //     let data_response = get_data(endpoint, params);
+    //     data_response.then(
+    //       function(response) {
+    //         let entityid = response.id;
+    //         this.setState({ entityid: entityid });
+    //         let entity_endpoint = `scot/api/v2/${
+    //           this.props.entitytype
+    //         }/${entityid}`;
+    //         let entity_response = get_data(entity_endpoint, params);
+    //         entity_response.then(
+    //           function(result) {
+    //             let newTab = {
+    //               data: result,
+    //               entityid: entityid,
+    //               entitytype: this.props.entitytype,
+    //               valueClicked: result.value
+    //             };
+
+    //             currentTabArray.push(newTab);
+    //             if (this.state.isMounted) {
+    //               let entityidsarray = [];
+    //               entityidsarray.push(entityid);
+    //               this.setState({
+    //                 tabs: currentTabArray,
+    //                 currentKey: entityid,
+    //                 initialLoad: true,
+    //                 processedIds: entityidsarray
+    //               });
+    //               this.props.createCallback(this.props.entityid, this.updated);
+    //             }
+    //           }
+    //             .bind(this)
+    //             .catch(function(error) {
+    //               this.props.errorToggle(
+    //                 "failed to get entity detail information",
+    //                 error
+    //               );
+    //             })
+    //         );
+    //       }
+    //         .bind(this)
+    //         .catch(function(error) {
+    //           this.props.errorToggle(
+    //             "failed to get entity detail id information ",
+    //             error
+    //           );
+    //         })
+    //     );
+    //   } else {
+    //     let id = this.state.entityid;
+    //     if (!Array.isArray(id)) {
+    //       id = [parseInt(id, 10)];
+    //     }
+
+    //     for (let i = 0; i < id.length; i++) {
+    //       $.ajax({
+    //         type: "GET",
+    //         url: "scot/api/v2/" + this.props.entitytype + "/" + id[i],
+    //         success: function(result) {
+    //           //this.setState({entityData:result})
+    //           let newTab = {
+    //             data: result,
+    //             entityid: result.id,
+    //             entitytype: this.props.entitytype,
+    //             valueClicked: result.value
+    //           };
+    //           currentTabArray.push(newTab);
+    //           if (this.state.isMounted) {
+    //             let entityidsarray = [];
+    //             entityidsarray.push(result.id);
+    //             this.setState({
+    //               tabs: currentTabArray,
+    //               currentKey: result.id,
+    //               initialLoad: true,
+    //               processedIds: entityidsarray
+    //             });
+    //             this.props.createCallback(this.props.entityid, this.updated);
+    //           }
+    //         }.bind(this),
+    //         error: function(data) {
+    //           this.props.errorToggle(
+    //             "failed to get entity detail information",
+    //             data
+    //           );
+    //         }.bind(this)
+    //       });
+    //     }
+    //   }
+    // } else {
+    //   let newTab = {
+    //     data: this.props.data,
+    //     entityid: this.props.entityid,
+    //     entitytype: this.props.entitytype,
+    //     valueClicked: this.props.entitytype
+    //   };
+    //   currentTabArray.push(newTab);
+    //   // if (this.state.isMounted) {
+    //   let entityidsarray = [];
+    //   entityidsarray.push(this.props.entityid);
+    //   this.setState({
+    //     tabs: currentTabArray,
+    //     currentKey: parseInt(this.props.entityid, 10),
+    //     initialLoad: true,
+    //     processedIds: entityidsarray
+    //   });
+    //   this.props.createCallback(this.props.entityid, this.updated);
+    // }
+    // //Esc key closes popup
+    // function escHandler(event) {
+    //   //prevent from working when in input
+    //   if ($("input").is(":focus")) {
+    //     return;
+    //   }
+    //   if ($("#main-search-results")[0] !== undefined) {
+    //     return;
+    //   } //close search results before closing entity div
+    //   //check for esc with keyCode
+    //   if (event.keyCode === 27) {
+    //     this.props.flairToolbarOff();
+    //     event.preventDefault();
+    //   }
+    // }
+
+    // $(document).keydown(escHandler.bind(this));
+    // this.containerHeightAdjust();
+    // window.addEventListener("resize", this.containerHeightAdjust);
+    // this.onLoad();
+
+    // $("iframe").each(function(index, ifr) {
+    //   //requestAnimationFrame waits for the frame to be rendered (allowing the iframe to fully render before excuting the next bit of code!!!
+    //   ifr.contentWindow.requestAnimationFrame(function() {
+    //     if (ifr.contentDocument != null) {
+    //       let ifrContents = $(ifr).contents();
+    //       //This makes all href point to blank so they don't reload the iframe
+    //       $(ifr.contentDocument.body)
+    //         .find("a")
+    //         .attr("target", "_blank");
+    //       //Copies href to a new attribute, url, before we make href an anchor (so it doesn't go anywhere when clicked)
+    //       ifrContents.find("a").each(function(index, a) {
+    //         let url = $(a).attr("href");
+    //         $(a).attr("url", url);
+    //       });
+    //     }
+    //   });
+    // });
+    // // this.props.watcher();
   };
 
   componentWillUnmount = () => {
@@ -274,10 +432,10 @@ export default class EntityDetail extends React.Component {
   componentWillReceiveProps = nextProps => {
     this.onLoad();
     let checkForInitialLoadComplete = {
-      checkForInitialLoadComplete: function () {
+      checkForInitialLoadComplete: function() {
         let addNewEntity = {
           //Initializing Function for adding an entry to be used later.
-          addNewEntity: function () {
+          addNewEntity: function() {
             let currentTabArray = this.state.tabs;
             if (nextProps.entitytype !== "source") {
               if (
@@ -288,7 +446,7 @@ export default class EntityDetail extends React.Component {
                   type: "GET",
                   url: "scot/api/v2/" + nextProps.entitytype + "/byname",
                   data: { name: nextProps.entityvalue },
-                  success: function (result) {
+                  success: function(result) {
                     let entityid = result.id;
                     if (this.state.isMounted) {
                       this.setState({ entityid: entityid });
@@ -299,7 +457,7 @@ export default class EntityDetail extends React.Component {
                           nextProps.entitytype +
                           "/" +
                           entityid,
-                        success: function (result) {
+                        success: function(result) {
                           let newTab = {
                             data: result,
                             entityid: entityid,
@@ -312,10 +470,13 @@ export default class EntityDetail extends React.Component {
                               tabs: currentTabArray,
                               currentKey: nextProps.entityid
                             });
-                            this.props.createCallback(nextProps.entityid, this.updated);
+                            this.props.createCallback(
+                              nextProps.entityid,
+                              this.updated
+                            );
                           }
                         }.bind(this),
-                        error: function (data) {
+                        error: function(data) {
                           this.props.errorToggle(
                             "failed to get entity detail information",
                             data
@@ -324,7 +485,7 @@ export default class EntityDetail extends React.Component {
                       });
                     }
                   }.bind(this),
-                  error: function (data) {
+                  error: function(data) {
                     this.props.errorToggle(
                       "failed to get entity id detail information",
                       data
@@ -339,7 +500,7 @@ export default class EntityDetail extends React.Component {
                     nextProps.entitytype +
                     "/" +
                     nextProps.entityid,
-                  success: function (result) {
+                  success: function(result) {
                     let newTab = {
                       data: result,
                       entityid: nextProps.entityid,
@@ -352,10 +513,13 @@ export default class EntityDetail extends React.Component {
                         tabs: currentTabArray,
                         currentKey: nextProps.entityid
                       });
-                      this.props.createCallback(nextProps.entityid, this.updated);
+                      this.props.createCallback(
+                        nextProps.entityid,
+                        this.updated
+                      );
                     }
                   }.bind(this),
-                  error: function (data) {
+                  error: function(data) {
                     this.props.errorToggle(
                       "failed to get entity detail information",
                       data
@@ -448,7 +612,7 @@ export default class EntityDetail extends React.Component {
           this.props.entitytype +
           "/" +
           currentTabArray[j].entityid,
-        success: function (result) {
+        success: function(result) {
           //this.setState({entityData:result})
           let newTab = {
             data: result,
@@ -468,7 +632,7 @@ export default class EntityDetail extends React.Component {
             });
           }
         }.bind(this),
-        error: function (data) {
+        error: function(data) {
           this.props.errorToggle(
             "failed to get updated entity detail information",
             data
@@ -484,7 +648,7 @@ export default class EntityDetail extends React.Component {
         .contents()
         .find("a")
         .each(
-          function (index, a) {
+          function(index, a) {
             if ($(a).css("color") === "rgb(255, 0, 0)") {
               $(a).data("state", "down");
             } else if ($(a).data("state") === "down") {
@@ -567,20 +731,20 @@ export default class EntityDetail extends React.Component {
   };
 
   blockiFrameMouseEvent = () => {
-    $("iframe").each(function (index, ifr) {
+    $("iframe").each(function(index, ifr) {
       $(ifr).addClass("pointerEventsOff");
     });
   };
 
   allowiFrameMouseEvent = () => {
-    $("iframe").each(function (index, ifr) {
+    $("iframe").each(function(index, ifr) {
       $(ifr).removeClass("pointerEventsOff");
     });
   };
 
-  handleSelectTab = (key) => {
+  handleSelectTab = key => {
     this.setState({ currentKey: key });
-  }
+  };
 
   positionRightBoundsCheck = e => {
     if (!e) {
@@ -822,13 +986,12 @@ class TabContents extends React.Component {
                   errorToggle={this.props.errorToggle}
                   createCallback={this.props.createCallback}
                   removeCallback={this.props.removeCallback}
-
                 />
               ) : (
-                  <div style={{ display: "inline-flex", position: "relative" }}>
-                    Loading...
+                <div style={{ display: "inline-flex", position: "relative" }}>
+                  Loading...
                 </div>
-                )}
+              )}
             </h4>
           </div>
           <div
@@ -851,11 +1014,10 @@ class TabContents extends React.Component {
                 linkWarningToggle={this.props.linkWarningToggle}
                 createCallback={this.props.createCallback}
                 removeCallback={this.props.removeCallback}
-
               />
             ) : (
-                <div>Loading...</div>
-              )}
+              <div>Loading...</div>
+            )}
           </div>
         </div>
       );
@@ -882,15 +1044,14 @@ class TabContents extends React.Component {
                         errorToggle={this.props.errorToggle}
                         createCallback={this.props.createCallback}
                         removeCallback={this.props.removeCallback}
-
                       />
                     </div>
                   </span>
                 ) : (
-                    <div style={{ display: "inline-flex", position: "relative" }}>
-                      Loading...
+                  <div style={{ display: "inline-flex", position: "relative" }}>
+                    Loading...
                   </div>
-                  )}
+                )}
               </h4>
             </Link>
           </div>
@@ -907,8 +1068,8 @@ class TabContents extends React.Component {
                 removeCallback={this.props.removeCallback}
               />
             ) : (
-                <div>Loading...</div>
-              )}
+              <div>Loading...</div>
+            )}
           </div>
         </div>
       );
@@ -930,11 +1091,44 @@ class TabContents extends React.Component {
                 entitytype={this.props.entitytype}
                 createCallback={this.props.createCallback}
                 removeCallback={this.props.removeCallback}
-
               />
             ) : (
-                <div>Loading...</div>
-              )}
+              <div>Loading...</div>
+            )}
+          </div>
+        </div>
+      );
+    } else if (this.props.entitytype === "entry") {
+      return (
+        <div className="tab-content">
+          <div style={{ flex: "0 1 auto", marginLeft: "10px" }} />
+          <div
+            id="entry-popup"
+            style={{ overflow: "auto", flex: "1 1 auto", marginLeft: "10px" }}
+          >
+            {this.props.entitytype != null ? (
+              <div>
+                <AddEntry
+                  entryAction={"Add"}
+                  type="alert"
+                  targetid={this.props.entityid}
+                  id={"add_entry"}
+                  addedentry={this.entryToggle}
+                  errorToggle={this.props.errorToggle}
+                />
+                <SelectedEntry
+                  type={"alert"}
+                  id={this.props.entityid}
+                  isPopUp={1}
+                  headerData={this.props.data}
+                  errorToggle={this.props.errorToggle}
+                  createCallback={this.props.createCallback}
+                  removeCallback={this.props.removeCallback}
+                />
+              </div>
+            ) : (
+              <div>Loading...</div>
+            )}
           </div>
         </div>
       );
@@ -1026,11 +1220,11 @@ class EntityBody extends React.Component {
 
   componentDidMount() {
     this.setState({ isMounted: true });
-  };
+  }
 
   componentWillUnmount() {
     this.setState({ isMounted: false });
-  };
+  }
 
   render = () => {
     let entityEnrichmentDataArr = [];
@@ -1206,10 +1400,10 @@ class GeoView extends React.Component {
       );
       copyArr.push(
         '<tr><td style={{paddingRight:"4px", paddingLeft:"4px"}}><b>' +
-        prop +
-        '</b></td><td style={{paddingRight:"4px", paddingLeft:"4px"}}>' +
-        value +
-        "</td></tr>"
+          prop +
+          '</b></td><td style={{paddingRight:"4px", paddingLeft:"4px"}}>' +
+          value +
+          "</td></tr>"
       );
     }
     copyArr.push("</table>");
@@ -1261,7 +1455,7 @@ class GeoView extends React.Component {
         </div>
       </div>
     );
-  };
+  }
 }
 
 class EntityEnrichmentButtons extends React.Component {
@@ -1274,7 +1468,7 @@ class EntityEnrichmentButtons extends React.Component {
         </div>
       </div>
     );
-  };
+  }
 }
 
 class EntityReferences extends React.Component {
@@ -1309,7 +1503,7 @@ class EntityReferences extends React.Component {
       url: "scot/api/v2/entity/" + this.props.entityid + "/alert",
       data: { sort: JSON.stringify({ id: -1 }) },
       traditional: true,
-      success: function (result) {
+      success: function(result) {
         result = result.records;
         let recordNumber = result.length;
         let arr = [];
@@ -1371,7 +1565,7 @@ class EntityReferences extends React.Component {
           }
         }
       }.bind(this),
-      error: function (data) {
+      error: function(data) {
         this.props.errorToggle(
           "failed to get entity references for alerts",
           data
@@ -1384,7 +1578,7 @@ class EntityReferences extends React.Component {
       url: "scot/api/v2/entity/" + this.props.entityid + "/event",
       data: { sort: JSON.stringify({ id: -1 }) },
       traditional: true,
-      success: function (result) {
+      success: function(result) {
         result = result.records;
         let recordNumber = result.length;
         let arr = [];
@@ -1446,7 +1640,7 @@ class EntityReferences extends React.Component {
           }
         }
       }.bind(this),
-      error: function (data) {
+      error: function(data) {
         this.props.errorToggle(
           "failed to get entity reference for events",
           data
@@ -1460,7 +1654,7 @@ class EntityReferences extends React.Component {
       url: "scot/api/v2/entity/" + this.props.entityid + "/guide",
       data: { sort: JSON.stringify({ id: -1 }) },
       traditional: true,
-      success: function (result) {
+      success: function(result) {
         result = result.records;
         let recordNumber = result.length;
         let arr = [];
@@ -1522,7 +1716,7 @@ class EntityReferences extends React.Component {
           }
         }
       }.bind(this),
-      error: function (data) {
+      error: function(data) {
         this.props.errorToggle(
           "failed to get entity references for guides",
           data
@@ -1535,7 +1729,7 @@ class EntityReferences extends React.Component {
       url: "scot/api/v2/entity/" + this.props.entityid + "/incident",
       data: { sort: JSON.stringify({ id: -1 }) },
       traditional: true,
-      success: function (result) {
+      success: function(result) {
         result = result.records;
         let recordNumber = result.length;
         let arr = [];
@@ -1597,7 +1791,7 @@ class EntityReferences extends React.Component {
           }
         }
       }.bind(this),
-      error: function (data) {
+      error: function(data) {
         this.props.errorToggle(
           "failed to get entity references for incidents",
           data
@@ -1610,7 +1804,7 @@ class EntityReferences extends React.Component {
       url: "scot/api/v2/entity/" + this.props.entityid + "/intel",
       data: { sort: JSON.stringify({ id: -1 }) },
       traditional: true,
-      success: function (result) {
+      success: function(result) {
         result = result.records;
         let recordNumber = result.length;
         let arr = [];
@@ -1672,7 +1866,7 @@ class EntityReferences extends React.Component {
           }
         }
       }.bind(this),
-      error: function (data) {
+      error: function(data) {
         this.props.errorToggle("failed to get entity references for intel");
       }.bind(this)
     });
@@ -1682,7 +1876,7 @@ class EntityReferences extends React.Component {
       url: "scot/api/v2/entity/" + this.props.entityid + "/signature",
       data: { sort: JSON.stringify({ id: -1 }) },
       traditional: true,
-      success: function (result) {
+      success: function(result) {
         result = result.records;
         let recordNumber = result.length;
         let arr = [];
@@ -1744,7 +1938,7 @@ class EntityReferences extends React.Component {
           }
         }
       }.bind(this),
-      error: function (data) {
+      error: function(data) {
         this.props.errorToggle("failed to get entity references for signature");
       }.bind(this)
     });
@@ -1791,15 +1985,9 @@ class EntityReferences extends React.Component {
                 this.props.errorToggle('failed to get entity references for entity')
             }.bind(this)
         })*/
-    $("#sortableentitytable" + this.props.entityid).tablesorter();
   };
 
-  componentDidUpdate = () => {
-    let config = $("#sortableentitytable" + this.props.entityid)[0].config,
-      // applies or reapplies a sort to the table; use false to not update the sort
-      resort = true; // or [ [0,0], [1,0] ] etc
-    $.tablesorter.updateAll(config, resort);
-  };
+  componentDidUpdate = () => {};
 
   componentWillUnmount = () => {
     this.setState({ isMounted: false });
@@ -1861,7 +2049,7 @@ class ReferencesBody extends React.Component {
       type: "GET",
       url:
         "scot/api/v2/" + this.props.type + "/" + this.props.data.id + "/entry",
-      success: function (result) {
+      success: function(result) {
         let entryResult = result.records;
         let summary = false;
         for (let i = 0; i < entryResult.length; i++) {
@@ -1901,17 +2089,17 @@ class ReferencesBody extends React.Component {
           });
         }
       }.bind(this),
-      error: function (data) {
+      error: function(data) {
         this.props.errorToggle(
           "Summary Query failed for: " +
-          this.props.type +
-          ":" +
-          this.props.data.id,
+            this.props.type +
+            ":" +
+            this.props.data.id,
           data
         );
       }.bind(this)
     });
-  }
+  };
 
   render() {
     let id = this.props.data.id;
@@ -1997,17 +2185,17 @@ class ReferencesBody extends React.Component {
             </Button>
           </td>
         ) : (
-            <td
-              style={{
-                color: statusColor,
-                paddingRight: "4px",
-                paddingLeft: "4px",
-                verticalAlign: "top"
-              }}
-            >
-              {this.props.data.status}
-            </td>
-          )}
+          <td
+            style={{
+              color: statusColor,
+              paddingRight: "4px",
+              paddingLeft: "4px",
+              verticalAlign: "top"
+            }}
+          >
+            {this.props.data.status}
+          </td>
+        )}
         <td
           style={{
             paddingRight: "4px",
@@ -2059,7 +2247,7 @@ class ReferencesBody extends React.Component {
         </td>
       </tr>
     );
-  };
+  }
 }
 
 class GuideBody extends React.Component {
@@ -2107,12 +2295,11 @@ class GuideBody extends React.Component {
             errorToggle={this.props.errorToggle}
             createCallback={this.props.createCallback}
             removeCallback={this.props.removeCallback}
-
           />
         </Tab>
       </Tabs>
     );
-  };
+  }
 }
 
 class SourceBody extends React.Component {
@@ -2128,11 +2315,19 @@ class SourceBody extends React.Component {
             title="Rendered"
           >
             <Frame
-              head={<link rel="stylesheet" type="text/css" href="/css/sandbox.css" />}
+              style={{ width: "100%" }}
+              head={
+                <link
+                  rel="stylesheet"
+                  type="text/css"
+                  href="/css/sandbox.css"
+                />
+              }
               frameBorder={"0"}
               id={"iframe_" + this.props.entityid}
               sandbox={"allow-same-origin"}
-              height="500px">
+              height="500px"
+            >
               <div dangerouslySetInnerHTML={{ __html: this.props.data.body }} />
             </Frame>
           </Tab>
@@ -2143,14 +2338,22 @@ class SourceBody extends React.Component {
             title="Raw Text"
           >
             <Frame
-              head={<link rel="stylesheet" type="text/css" href="/css/sandbox.css" />}
+              head={
+                <link
+                  rel="stylesheet"
+                  type="text/css"
+                  href="/css/sandbox.css"
+                />
+              }
+              style={{ width: "100%" }}
               frameBorder={"0"}
               id={"iframe_" + this.props.entityid}
               sandbox={"allow-same-origin"}
               styleSheets={["/css/sandbox.css"]}
-              height="500px">
+              height="500px"
+            >
               >
-                            <div
+              <div
                 dangerouslySetInnerHTML={{ __html: this.props.data.body_plain }}
               />
             </Frame>
@@ -2158,5 +2361,5 @@ class SourceBody extends React.Component {
         </Tabs>
       </div>
     );
-  };
+  }
 }

@@ -1,16 +1,16 @@
 import React from "react";
 import $ from "jquery";
 import DetailDataStatus from "../components/detail_data_status";
-import ReactTime from "react-time"
+import ReactTime from "react-time";
 import SelectedHeaderOptions from "./selected_header_options.js";
-import { DeleteEvent } from "../modal/delete.js"
+import { DeleteThingComponent } from "../modal/delete.js";
 import Owner from "../modal/owner.js";
 import Entities from "../modal/entities.js";
 import ChangeHistory from "../modal/change_history.js";
 import ViewedByHistory from "../modal/viewed_by_history.js";
 import SelectedPermission from "../components/permission.js";
 import SelectedEntry from "./selected_entry.js";
-import Badge from '../components/badge.js'
+import Badge from "../components/badge.js";
 import Notification from "react-notification-system";
 import AddFlair from "../components/add_flair.js";
 import EntityDetail from "../modal/entity_detail.js";
@@ -36,6 +36,7 @@ export default class SelectedHeader extends React.Component {
       viewedByHistoryToolbar: false,
       entryToolbar: false,
       deleteToolbar: false,
+      deleteType: null,
       promoteToolbar: false,
       notificationType: null,
       notificationMessage: null,
@@ -43,7 +44,7 @@ export default class SelectedHeader extends React.Component {
       showEntryData: false,
       entryData: "",
       showEntityData: false,
-      entityData: "",
+      entityData: [],
       entityid: null,
       entitytype: null,
       entityoffset: null,
@@ -56,11 +57,6 @@ export default class SelectedHeader extends React.Component {
       eventLoaded: false,
       entryLoaded: false,
       entityLoaded: false,
-      alertSelected: false,
-      aIndex: null,
-      aType: null,
-      aStatus: null,
-      aID: 0,
       guideID: null,
       fileUploadToolbar: false,
       isNotFound: false,
@@ -70,11 +66,12 @@ export default class SelectedHeader extends React.Component {
       showSignatureOptions: false,
       showMarkModal: false,
       showLinksModal: false,
-      isDeleted: false,
       flairOff: false,
       highlightedText: "",
       flairing: false,
-      isMounted: false
+      isMounted: false,
+      alertsSelected: [],
+      isDeleted: false
     };
   }
 
@@ -85,72 +82,138 @@ export default class SelectedHeader extends React.Component {
   componentDidMount = () => {
     this.setState({ isMounted: true });
     let delayFunction = {
-      delay: function () {
-        let entryType = 'entry';
-        if (this.props.type == 'alertgroup') { entryType = 'alert'; }
+      delay: function() {
+        let entryType = "entry";
+        if (this.props.type === "alertgroup") {
+          entryType = "alert";
+        }
         //Main Type Load
         $.ajax({
-          type: 'get',
-          url: 'scot/api/v2/' + this.props.type + '/' + this.props.id,
-          success: function (result) {
+          type: "get",
+          url: "scot/api/v2/" + this.props.type + "/" + this.props.id,
+          success: function(result) {
             if (this.state.isMounted) {
               let eventResult = result;
-              this.setState({ headerData: eventResult, showEventData: true, isNotFound: false, tagData: eventResult.tag, sourceData: eventResult.source });
-              if (this.state.showEventData == true && this.state.showEntryData == true && this.state.showEntityData == true) {
+              this.setState({
+                headerData: eventResult,
+                showEventData: true,
+                isNotFound: false,
+                tagData: eventResult.tag,
+                sourceData: eventResult.source
+              });
+              if (
+                this.state.showEventData === true &&
+                this.state.showEntryData === true &&
+                this.state.showEntityData === true
+              ) {
                 this.setState({ loading: false });
               }
-              if (this.props.type == 'alertgroup' && eventResult.parsed === -1) {
+              if (
+                this.props.type === "alertgroup" &&
+                eventResult.parsed === -1
+              ) {
                 this.setState({ flairing: true });
               } else {
                 this.setState({ flairing: false });
               }
             }
           }.bind(this),
-          error: function (result) {
+          error: function(result) {
             this.setState({ showEventData: true, isNotFound: true });
-            if (this.state.showEventData == true && this.state.showEntryData == true && this.state.showEntityData == true) {
+            if (
+              this.state.showEventData === true &&
+              this.state.showEntryData === true &&
+              this.state.showEntityData === true
+            ) {
               this.setState({ loading: false });
             }
-            this.props.errorToggle('Error: Failed to load detail data. Error message: ' + result.responseText, result);
-          }.bind(this),
+            this.props.errorToggle(
+              "Error: Failed to load detail data. Error message: " +
+                result.responseText,
+              result
+            );
+          }.bind(this)
         });
         //entry load
         $.ajax({
-          type: 'get',
-          url: 'scot/api/v2/' + this.props.type + '/' + this.props.id + '/' + entryType,
-          success: function (result) {
+          type: "get",
+          url:
+            "scot/api/v2/" +
+            this.props.type +
+            "/" +
+            this.props.id +
+            "/" +
+            entryType,
+          success: function(result) {
             if (this.state.isMounted) {
               let entryResult = result.records;
-              this.setState({ showEntryData: true, entryData: entryResult, runWatcher: true });
+              // entryResult.forEach(
+              //   function(item) {
+              //     this.props.createCallback(item.id, this.updated);
+              //   }.bind(this)
+              // );
+              this.setState({
+                showEntryData: true,
+                entryData: entryResult,
+                runWatcher: true
+              });
               this.Watcher();
-              if (this.state.showEventData == true && this.state.showEntryData == true && this.state.showEntityData == true) {
+              if (
+                this.state.showEventData === true &&
+                this.state.showEntryData === true &&
+                this.state.showEntityData === true
+              ) {
                 this.setState({ loading: false });
               }
             }
           }.bind(this),
-          error: function (result) {
+          error: function(result) {
             this.setState({ showEntryData: true });
-            if (this.state.showEventData == true && this.state.showEntryData == true && this.state.showEntityData == true) {
+            if (
+              this.state.showEventData == true &&
+              this.state.showEntryData == true &&
+              this.state.showEntityData == true
+            ) {
               this.setState({ loading: false });
             }
-            this.props.errorToggle('Error: Failed to load entry data. Error message: ' + result.responseText, result);
+            this.props.errorToggle(
+              "Error: Failed to load entry data. Error message: " +
+                result.responseText,
+              result
+            );
           }
         });
         //entity load
         $.ajax({
-          type: 'get',
-          url: 'scot/api/v2/' + this.props.type + '/' + this.props.id + '/entity',
-          success: function (result) {
+          type: "get",
+          url:
+            "scot/api/v2/" + this.props.type + "/" + this.props.id + "/entity",
+          success: function(result) {
             if (this.state.isMounted) {
               let entityResult = result.records;
               this.setState({ showEntityData: true, entityData: entityResult });
               var waitForEntry = {
-                waitEntry: function () {
+                waitEntry: function() {
                   if (this.state.showEntryData == false) {
                     setTimeout(waitForEntry.waitEntry, 50);
                   } else {
-                    setTimeout(function () { AddFlair.entityUpdate(entityResult, this.flairToolbarToggle, this.props.type, this.linkWarningToggle, this.props.id, this.scrollTo); }.bind(this));
-                    if (this.state.showEventData == true && this.state.showEntryData == true && this.state.showEntityData == true) {
+                    setTimeout(
+                      function() {
+                        AddFlair.entityUpdate(
+                          entityResult,
+                          this.flairToolbarToggle,
+                          this.props.type,
+                          this.linkWarningToggle,
+                          this.props.id,
+                          this.scrollTo
+                        );
+                      }.bind(this)
+                    );
+                    if (
+                      this.state.showEventData == true &&
+                      this.state.showEntryData == true &&
+                      this.state.showEntityData == true
+                    ) {
                       this.setState({ loading: false });
                     }
                   }
@@ -159,31 +222,46 @@ export default class SelectedHeader extends React.Component {
               waitForEntry.waitEntry();
             }
           }.bind(this),
-          error: function (result) {
+          error: function(result) {
             this.setState({ showEntityData: true });
-            if (this.state.showEventData == true && this.state.showEntryData == true && this.state.showEntityData == true) {
+            if (
+              this.state.showEventData == true &&
+              this.state.showEntryData == true &&
+              this.state.showEntityData == true
+            ) {
               this.setState({ loading: false });
             }
-            this.props.errorToggle('Error: Failed to load entity data.', result);
+            this.props.errorToggle(
+              "Error: Failed to load entity data.",
+              result
+            );
           }.bind(this)
         });
         //guide load
-        if (this.props.type == 'alertgroup') {
+        if (this.props.type == "alertgroup") {
           $.ajax({
-            type: 'get',
-            url: 'scot/api/v2/' + this.props.type + '/' + this.props.id + '/guide',
-            success: function (result) {
+            type: "get",
+            url:
+              "scot/api/v2/" + this.props.type + "/" + this.props.id + "/guide",
+            success: function(result) {
               if (this.state.isMounted) {
                 let arr = [];
                 for (let i = 0; i < result.records.length; i++) {
                   arr.push(result.records[i].id);
                 }
+                if (arr.length === 0) {
+                  arr = null;
+                }
                 this.setState({ guideID: arr });
               }
             }.bind(this),
-            error: function (result) {
+            error: function(result) {
               this.setState({ guideID: null });
-              this.props.errorToggle('Error: Failed to load guide data. Error message:' + result.responseText, result);
+              this.props.errorToggle(
+                "Error: Failed to load guide data. Error message:" +
+                  result.responseText,
+                result
+              );
             }.bind(this)
           });
         }
@@ -191,14 +269,19 @@ export default class SelectedHeader extends React.Component {
       }.bind(this)
     };
     InitialAjaxLoad = setTimeout(delayFunction.delay, 400);
-
   };
 
-  componentWillUnmount = () => {
+  componentWillUnmount() {
     this.setState({ isMounted: false });
     clearTimeout(InitialAjaxLoad);
-    this.props.removeCallback(parseInt(this.props.id, 10), this.updated);
-  };
+    if (this.state.entryData.forEach === "function") {
+      this.state.entryData.forEach(
+        function(entry) {
+          this.props.removeCallback(entry.id);
+        }.bind(this)
+      );
+    }
+  }
 
   componentDidUpdate = () => {
     //This runs the watcher which handles the entity popup and link warning.
@@ -213,95 +296,167 @@ export default class SelectedHeader extends React.Component {
   };
 
   updated = (_type, _message) => {
-    if (!this.state.isDeleted) {
-      this.setState({ refreshing: true, eventLoaded: false, entryLoaded: false, entityLoaded: false });
-      let entryType = 'entry';
-      if (this.props.type == 'alertgroup') { entryType = 'alert'; }
-      //main type load
-      $.ajax({
-        type: 'get',
-        url: 'scot/api/v2/' + this.props.type + '/' + this.props.id,
-        success: function (result) {
-          if (this.state.isMounted) {
-            let eventResult = result;
-            this.setState({ headerData: eventResult, showEventData: true, eventLoaded: true, isNotFound: false, tagData: eventResult.tag, sourceData: eventResult.source });
-            if (this.state.eventLoaded == true && this.state.entryLoaded == true && this.state.entityLoaded == true) {
-              this.setState({ refreshing: false });
-            }
-            if (this.props.type == 'alertgroup' && eventResult.parsed === -1) {
-              this.setState({ flairing: true });
-            } else {
-              this.setState({ flairing: false });
-            }
-          }
-        }.bind(this),
-        error: function (result) {
-          this.setState({ showEventData: true, eventLoaded: true, isNotFound: true });
-          if (this.state.eventLoaded == true && this.state.entryLoaded == true && this.state.entityLoaded == true) {
-            this.setState({ refreshing: false });
-          }
-          this.props.errorToggle('Error: Failed to reload detail data. Error message: ' + result.responseText, result);
-        }.bind(this),
-      });
-      //entry load
-      $.ajax({
-        type: 'get',
-        url: 'scot/api/v2/' + this.props.type + '/' + this.props.id + '/' + entryType,
-        success: function (result) {
-          if (this.state.isMounted) {
-            let entryResult = result.records;
-            this.setState({ showEntryData: true, entryLoaded: true, entryData: entryResult, runWatcher: true });
-            this.Watcher();
-            if (this.state.eventLoaded == true && this.state.entryLoaded == true && this.state.entityLoaded == true) {
-              this.setState({ refreshing: false });
-            }
-          }
-        }.bind(this),
-        error: function (result) {
-          this.setState({ showEntryData: true, entryLoaded: true });
-          if (this.state.eventLoaded == true && this.state.entryLoaded == true && this.state.entityLoaded == true) {
-            this.setState({ refreshing: false });
-          }
-          this.props.errorToggle('Error: Failed to reload entry data. Error message: ' + result.responseText, result);
-        }
-      });
-      //entity load
-      $.ajax({
-        type: 'get',
-        url: 'scot/api/v2/' + this.props.type + '/' + this.props.id + '/entity',
-        success: function (result) {
-          if (this.state.isMounted) {
-            let entityResult = result.records;
-            this.setState({ showEntityData: true, entityLoaded: true, entityData: entityResult });
-            var waitForEntry = {
-              waitEntry: function () {
-                if (this.state.entryLoaded == false) {
-                  setTimeout(waitForEntry.waitEntry, 50);
-                } else {
-                  setTimeout(function () { AddFlair.entityUpdate(entityResult, this.flairToolbarToggle, this.props.type, this.linkWarningToggle, this.props.id); }.bind(this));
-                  if (this.state.eventLoaded == true && this.state.entryLoaded == true && this.state.entityLoaded == true) {
-                    this.setState({ refreshing: false });
-                  }
-                }
-              }.bind(this)
-            };
-            waitForEntry.waitEntry();
-          }
-        }.bind(this),
-        error: function (result) {
-          this.setState({ showEntityData: true });
-          if (this.state.eventLoaded == true && this.state.entryLoaded == true && this.state.entityLoaded == true) {
-            this.setState({ refreshing: false });
-          }
-          this.props.errorToggle('Error: Failed to reload entity data.', result);
-        }.bind(this)
-      });
-      //error popup if an error occurs
-      if (_type != undefined && _message != undefined) {
-        this.props.errorToggle(_message);
-      }
+    this.setState({
+      refreshing: true,
+      eventLoaded: false,
+      entryLoaded: false,
+      entityLoaded: false
+    });
+    let entryType = "entry";
+    if (this.props.type == "alertgroup") {
+      entryType = "alert";
     }
-
+    //main type load
+    $.ajax({
+      type: "get",
+      url: "scot/api/v2/" + this.props.type + "/" + this.props.id,
+      success: function(result) {
+        if (this.state.isMounted) {
+          let eventResult = result;
+          this.setState({
+            headerData: eventResult,
+            showEventData: true,
+            eventLoaded: true,
+            isNotFound: false,
+            tagData: eventResult.tag,
+            sourceData: eventResult.source
+          });
+          if (
+            this.state.eventLoaded == true &&
+            this.state.entryLoaded == true &&
+            this.state.entityLoaded == true
+          ) {
+            this.setState({ refreshing: false });
+          }
+          if (this.props.type == "alertgroup" && eventResult.parsed === -1) {
+            this.setState({ flairing: true });
+          } else {
+            this.setState({ flairing: false });
+          }
+        }
+      }.bind(this),
+      error: function(result) {
+        this.setState({
+          showEventData: true,
+          eventLoaded: true,
+          isNotFound: true
+        });
+        if (
+          this.state.eventLoaded == true &&
+          this.state.entryLoaded == true &&
+          this.state.entityLoaded == true
+        ) {
+          this.setState({ refreshing: false });
+        }
+        this.props.errorToggle(
+          "Error: Failed to reload detail data. Error message: " +
+            result.responseText,
+          result
+        );
+      }.bind(this)
+    });
+    //entry load
+    $.ajax({
+      type: "get",
+      url:
+        "scot/api/v2/" +
+        this.props.type +
+        "/" +
+        this.props.id +
+        "/" +
+        entryType,
+      success: function(result) {
+        if (this.state.isMounted) {
+          let entryResult = result.records;
+          this.setState({
+            showEntryData: true,
+            entryLoaded: true,
+            entryData: entryResult,
+            runWatcher: true
+          });
+          this.Watcher();
+          if (
+            this.state.eventLoaded == true &&
+            this.state.entryLoaded == true &&
+            this.state.entityLoaded == true
+          ) {
+            this.setState({ refreshing: false });
+          }
+        }
+      }.bind(this),
+      error: function(result) {
+        this.setState({ showEntryData: true, entryLoaded: true });
+        if (
+          this.state.eventLoaded == true &&
+          this.state.entryLoaded == true &&
+          this.state.entityLoaded == true
+        ) {
+          this.setState({ refreshing: false });
+        }
+        this.props.errorToggle(
+          "Error: Failed to reload entry data. Error message: " +
+            result.responseText,
+          result
+        );
+      }
+    });
+    //entity load
+    $.ajax({
+      type: "get",
+      url: "scot/api/v2/" + this.props.type + "/" + this.props.id + "/entity",
+      success: function(result) {
+        if (this.state.isMounted) {
+          let entityResult = result.records;
+          this.setState({
+            showEntityData: true,
+            entityLoaded: true,
+            entityData: entityResult
+          });
+          var waitForEntry = {
+            waitEntry: function() {
+              if (this.state.entryLoaded == false) {
+                setTimeout(waitForEntry.waitEntry, 50);
+              } else {
+                setTimeout(
+                  function() {
+                    AddFlair.entityUpdate(
+                      entityResult,
+                      this.flairToolbarToggle,
+                      this.props.type,
+                      this.linkWarningToggle,
+                      this.props.id
+                    );
+                  }.bind(this)
+                );
+                if (
+                  this.state.eventLoaded == true &&
+                  this.state.entryLoaded == true &&
+                  this.state.entityLoaded == true
+                ) {
+                  this.setState({ refreshing: false });
+                }
+              }
+            }.bind(this)
+          };
+          waitForEntry.waitEntry();
+        }
+      }.bind(this),
+      error: function(result) {
+        this.setState({ showEntityData: true });
+        if (
+          this.state.eventLoaded == true &&
+          this.state.entryLoaded == true &&
+          this.state.entityLoaded == true
+        ) {
+          this.setState({ refreshing: false });
+        }
+        this.props.errorToggle("Error: Failed to reload entity data.", result);
+      }.bind(this)
+    });
+    //error popup if an error occurs
+    if (_type != undefined && _message != undefined) {
+      this.props.errorToggle(_message);
+    }
   };
 
   flairToolbarToggle = (id, value, type, entityoffset, entityobj) => {
@@ -356,21 +511,15 @@ export default class SelectedHeader extends React.Component {
       this.setState({ entryToolbar: true });
     } else {
       this.setState({ entryToolbar: false });
-      //click refresh detail button on screen to refresh data while the tinymce window was open since it held back updates of the DOM
-      //hold off on refresh as the tinymce preventing update is currently commented out
-      /*if ($('#refresh-detail')) {
-                $('#refresh-detail').click();
-            }*/
     }
   };
 
-  deleteToggle = isDeleted => {
+  deleteToggle = (type, isDeleted) => {
     if (this.state.deleteToolbar === false) {
-      this.setState({ deleteToolbar: true });
+      this.setState({ deleteToolbar: true, deleteType: type });
     } else {
-      this.setState({ deleteToolbar: false });
+      this.setState({ deleteToolbar: false, deleteType: type });
     }
-    //set isDeleted to true so notifications won't fire
     if (isDeleted) {
       this.setState({ isDeleted: true });
     }
@@ -429,68 +578,83 @@ export default class SelectedHeader extends React.Component {
     return newstring;
   };
 
-  alertSelected = (aIndex, aID, aType, aStatus) => {
-    this.setState({
-      alertSelected: true,
-      aIndex: aIndex,
-      aID: aID,
-      aType: aType,
-      aStatus: aStatus
-    });
-  };
-
   Watcher = () => {
-    $('iframe').each(function (index, ifr) {
-      //requestAnimationFrame waits for the frame to be rendered (allowing the iframe to fully render before excuting the next bit of code!!!
-      ifr.contentWindow.requestAnimationFrame(function () {
-        if (ifr.contentDocument != null) {
-          let arr = [];
-          //arr.push(this.props.type);
-          arr.push(this.checkFlairHover);
-          arr.push(this.checkHighlight);
-          $(ifr).off('mouseenter');
-          $(ifr).off('mouseleave');
-          $(ifr).on('mouseenter', function (v, type) {
-            let intervalID = setInterval(this[0], 50, ifr);// this.flairToolbarToggle, type, this.props.linkWarningToggle, this.props.id);
-            let intervalID1 = setInterval(this[1], 50, ifr);// this.flairToolbarToggle, type, this.props.linkWarningToggle, this.props.id);
-            $(ifr).data('intervalID', intervalID);
-            $(ifr).data('intervalID1', intervalID1);
-            console.log('Now watching iframe ' + intervalID);
-          }.bind(arr));
-          $(ifr).on('mouseleave', function () {
-            let intervalID = $(ifr).data('intervalID');
-            let intervalID1 = $(ifr).data('intervalID1');
-            window.clearInterval(intervalID);
-            window.clearInterval(intervalID1);
-            console.log('No longer watching iframe ' + intervalID);
-          });
-        }
-      }.bind(this));
-    }.bind(this));
-    if (this.props.type == 'alertgroup') {
-      $('#detail-container').find('a, .entity').not('.not_selectable').each(function (index, tr) {
-        $(tr).off('mousedown');
-        $(tr).on('mousedown', function (index) {
-          let thing = index.target;
-          if ($(thing)[0].className == 'extras') { thing = $(thing)[0].parentNode; } //if an extra is clicked reference the parent element
-          if ($(thing).attr('url')) {  //link clicked
-            let url = $(thing).attr('url');
-            this.linkWarningToggle(url);
-          } else { //entity clicked
-            let entityid = $(thing).attr('data-entity-id');
-            let entityvalue = $(thing).attr('data-entity-value');
-            let entityoffset = $(thing).offset();
-            let entityobj = $(thing);
-            this.flairToolbarToggle(entityid, entityvalue, 'entity', entityoffset, entityobj);
-          }
-        }.bind(this));
-      }.bind(this));
+    $("iframe").each(
+      function(index, ifr) {
+        //requestAnimationFrame waits for the frame to be rendered (allowing the iframe to fully render before excuting the next bit of code!!!
+        ifr.contentWindow.requestAnimationFrame(
+          function() {
+            if (ifr.contentDocument !== null) {
+              let arr = [];
+              //arr.push(this.props.type);
+              arr.push(this.checkFlairHover);
+              arr.push(this.checkHighlight);
+              $(ifr).off("mouseenter");
+              $(ifr).off("mouseleave");
+              $(ifr).on(
+                "mouseenter",
+                function(v, type) {
+                  let intervalID = setInterval(this[0], 50, ifr); // this.flairToolbarToggle, type, this.props.linkWarningToggle, this.props.id);
+                  let intervalID1 = setInterval(this[1], 50, ifr); // this.flairToolbarToggle, type, this.props.linkWarningToggle, this.props.id);
+                  $(ifr).data("intervalID", intervalID);
+                  $(ifr).data("intervalID1", intervalID1);
+                  console.log("Now watching iframe " + intervalID);
+                }.bind(arr)
+              );
+              $(ifr).on("mouseleave", function() {
+                let intervalID = $(ifr).data("intervalID");
+                let intervalID1 = $(ifr).data("intervalID1");
+                window.clearInterval(intervalID);
+                window.clearInterval(intervalID1);
+                console.log("No longer watching iframe " + intervalID);
+              });
+            }
+          }.bind(this)
+        );
+      }.bind(this)
+    );
+    if (this.props.type == "alertgroup") {
+      $("#detail-container")
+        .find("a, .entity")
+        .not(".not_selectable")
+        .each(
+          function(index, tr) {
+            $(tr).off("mousedown");
+            $(tr).on(
+              "mousedown",
+              function(index) {
+                let thing = index.target;
+                if ($(thing)[0].className == "extras") {
+                  thing = $(thing)[0].parentNode;
+                } //if an extra is clicked reference the parent element
+                if ($(thing).attr("url")) {
+                  //link clicked
+                  let url = $(thing).attr("url");
+                  this.linkWarningToggle(url);
+                } else {
+                  //entity clicked
+                  let entityid = $(thing).attr("data-entity-id");
+                  let entityvalue = $(thing).attr("data-entity-value");
+                  let entityoffset = $(thing).offset();
+                  let entityobj = $(thing);
+                  this.flairToolbarToggle(
+                    entityid,
+                    entityvalue,
+                    "entity",
+                    entityoffset,
+                    entityobj
+                  );
+                }
+              }.bind(this)
+            );
+          }.bind(this)
+        );
     }
   };
 
   checkHighlight = ifr => {
     let content;
-    if (ifr) {
+    if (ifr.contentWindow !== null) {
       content = ifr.contentWindow.getSelection().toString();
       if (this.state.highlightedText != content) {
         //this only tells the lower components to run their componentWIllReceiveProps methods to check for highlighted text.
@@ -498,8 +662,8 @@ export default class SelectedHeader extends React.Component {
       } else {
         return;
       }
+    } else {
     }
-
   };
 
   checkFlairHover = (ifr, nicktype) => {
@@ -507,31 +671,48 @@ export default class SelectedHeader extends React.Component {
       return ifr;
     }
     if (ifr.contentDocument != null) {
-      $(ifr).contents().find('.entity').each(function (index, entity) {
-        if ($(entity).css('background-color') == 'rgb(255, 0, 0)') {
-          $(entity).data('state', 'down');
-        } else if ($(entity).data('state') == 'down') {
-          $(entity).data('state', 'up');
-          let entityid = $(entity).attr('data-entity-id');
-          let entityvalue = $(entity).attr('data-entity-value');
-          let entityobj = $(entity);
-          let ifr = returnifr();
-          let entityoffset = { top: $(entity).offset().top + $(ifr).offset().top, left: $(entity).offset().left + $(ifr).offset().left };
-          this.flairToolbarToggle(entityid, entityvalue, 'entity', entityoffset, entityobj);
-        }
-      }.bind(this));
-      $(ifr).contents().find('a').each(function (index, a) {
-        if ($(a).css('color') == 'rgb(255, 0, 0)') {
-          $(a).data('state', 'down');
-        } else if ($(a).data('state') == 'down') {
-          $(a).data('state', 'up');
-          let url = $(a).attr('url');
-          this.linkWarningToggle(url);
-        }
-      }.bind(this));
+      $(ifr)
+        .contents()
+        .find(".entity")
+        .each(
+          function(index, entity) {
+            if ($(entity).css("background-color") == "rgb(255, 0, 0)") {
+              $(entity).data("state", "down");
+            } else if ($(entity).data("state") == "down") {
+              $(entity).data("state", "up");
+              let entityid = $(entity).attr("data-entity-id");
+              let entityvalue = $(entity).attr("data-entity-value");
+              let entityobj = $(entity);
+              let ifr = returnifr();
+              let entityoffset = {
+                top: $(entity).offset().top + $(ifr).offset().top,
+                left: $(entity).offset().left + $(ifr).offset().left
+              };
+              this.flairToolbarToggle(
+                entityid,
+                entityvalue,
+                "entity",
+                entityoffset,
+                entityobj
+              );
+            }
+          }.bind(this)
+        );
+      $(ifr)
+        .contents()
+        .find("a")
+        .each(
+          function(index, a) {
+            if ($(a).css("color") == "rgb(255, 0, 0)") {
+              $(a).data("state", "down");
+            } else if ($(a).data("state") == "down") {
+              $(a).data("state", "up");
+              let url = $(a).attr("url");
+              this.linkWarningToggle(url);
+            }
+          }.bind(this)
+        );
     }
-
-
   };
 
   summaryUpdate = () => {
@@ -542,15 +723,14 @@ export default class SelectedHeader extends React.Component {
     if (this.props.taskid !== undefined) {
       $(".entry-wrapper").scrollTop(
         $(".entry-wrapper").scrollTop() +
-        $("#iframe_" + this.props.taskid).position().top -
-        30
+          $("#iframe_" + this.props.taskid).position().top -
+          30
       );
     }
   };
 
   guideRedirectToAlertListWithFilter = () => {
-    console.log("hey")
-    RegExp.escape = function (text) {
+    RegExp.escape = function(text) {
       return text.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, "\\$&");
     };
     //column, string, clearall (bool), type
@@ -598,7 +778,7 @@ export default class SelectedHeader extends React.Component {
     if (this.state.flairOff) {
       this.setState({ flairOff: false, runWatcher: true });
       setTimeout(
-        function () {
+        function() {
           AddFlair.entityUpdate(
             this.state.entityData,
             this.flairToolbarToggle,
@@ -611,6 +791,65 @@ export default class SelectedHeader extends React.Component {
     } else {
       this.setState({ flairOff: true });
     }
+  };
+
+  //2019 new alert table stuff
+  checkSelection(rowid) {
+    if (this.state.alertsSelected.some(item => rowid === item.id)) {
+      return true;
+    } else {
+      return false;
+    }
+  }
+
+  handleSelection = row => {
+    console.log("Got selection click!");
+    this.setState({
+      alertsSelected: [row]
+    });
+  };
+
+  handleMultiSelection = row => {
+    if (!this.checkSelection(row.id)) {
+      let temparray = [...this.state.alertsSelected, row];
+      this.setState({
+        alertsSelected: temparray
+      });
+    } else {
+      /** item already selected, lets filter out item (uncheck and reset state
+      with new array returned from filter**/
+      this.setState({
+        alertsSelected: this.state.alertsSelected.filter(function(alert) {
+          return alert["id"] !== row.id;
+        })
+      });
+    }
+  };
+
+  handleSelectAll = data => {
+    const selection = data.map(object => object.id);
+    this.setState({
+      alertsSelected: selection
+    });
+  };
+
+  handleShiftSelect = (startIndex, endIndex, data) => {
+    if (startIndex > endIndex) {
+      startIndex = [endIndex, (endIndex = startIndex)][0];
+    }
+    let temparray = [];
+    data.forEach(
+      function(row) {
+        if (row.id <= endIndex && row.id >= startIndex) {
+          if (!this.checkSelection(row)) {
+            temparray.push(row);
+          }
+        }
+      }.bind(this)
+    );
+    this.setState({
+      alertsSelected: [...this.state.alertsSelected, ...temparray]
+    });
   };
 
   render() {
@@ -637,325 +876,340 @@ export default class SelectedHeader extends React.Component {
         {this.state.isNotFound ? (
           <h1>No record found.</h1>
         ) : (
-            <div>
-              <div id="header">
-                <div id="NewEventInfo" className="entry-header-info-null">
+          <div>
+            <div id="header">
+              <div id="NewEventInfo" className="entry-header-info-null">
+                <div
+                  className="details-subject"
+                  style={{ display: "inline-flex", paddingLeft: "5px" }}
+                >
+                  {this.state.showEventData ? (
+                    <EntryDataSubject
+                      data={this.state.headerData}
+                      subjectType={subjectType}
+                      type={type}
+                      id={this.props.id}
+                      errorToggle={this.props.errorToggle}
+                    />
+                  ) : null}
+                  {this.state.refreshing ? (
+                    <span style={{ color: "lightblue" }}>
+                      Refreshing Data...
+                    </span>
+                  ) : null}
+                  {this.state.loading ? (
+                    <span style={{ color: "lightblue" }}>Loading...</span>
+                  ) : null}
+                  {this.state.processing ? (
+                    <span style={{ color: "lightblue" }}>
+                      Processing Actions...
+                    </span>
+                  ) : null}
+                  {this.state.flairing ? (
+                    <span style={{ color: "lightblue" }}>Flairing...</span>
+                  ) : null}
+                </div>
+                {type !== "entity" ? (
                   <div
-                    className="details-subject"
-                    style={{ display: "inline-flex", paddingLeft: "5px" }}
+                    className="details-table toolbar"
+                    style={{ display: "flex" }}
                   >
-                    {this.state.showEventData ? (
-                      <EntryDataSubject
-                        data={this.state.headerData}
-                        subjectType={subjectType}
-                        type={type}
-                        id={this.props.id}
-                        errorToggle={this.props.errorToggle}
-                      />
-                    ) : null}
-                    {this.state.refreshing ? (
-                      <span style={{ color: "lightblue" }}>
-                        Refreshing Data...
-                    </span>
-                    ) : null}
-                    {this.state.loading ? (
-                      <span style={{ color: "lightblue" }}>Loading...</span>
-                    ) : null}
-                    {this.state.processing ? (
-                      <span style={{ color: "lightblue" }}>
-                        Processing Actions...
-                    </span>
-                    ) : null}
-                    {this.state.flairing ? (
-                      <span style={{ color: "lightblue" }}>Flairing...</span>
-                    ) : null}
-                  </div>
-                  {type !== "entity" ? (
-                    <div
-                      className="details-table toolbar"
-                      style={{ display: "flex" }}
-                    >
-                      <table>
-                        <tbody>
-                          <tr>
-                            <th />
+                    <table>
+                      <tbody>
+                        <tr>
+                          <th />
+                          <td>
+                            <div style={{ marginLeft: "5px" }}>
+                              {this.state.showEventData ? (
+                                <DetailDataStatus
+                                  data={this.state.headerData}
+                                  status={this.state.headerData.status}
+                                  id={id}
+                                  type={type}
+                                  errorToggle={this.props.errorToggle}
+                                />
+                              ) : null}
+                            </div>
+                          </td>
+                          {type !== "entity" ? <th>Owner: </th> : null}
+                          {type !== "entity" ? (
                             <td>
-                              <div style={{ marginLeft: "5px" }}>
+                              <span>
                                 {this.state.showEventData ? (
-                                  <DetailDataStatus
-                                    data={this.state.headerData}
-                                    status={this.state.headerData.status}
-                                    id={id}
+                                  <Owner
+                                    key={id}
+                                    data={this.state.headerData.owner}
                                     type={type}
+                                    id={id}
+                                    updated={this.updated}
                                     errorToggle={this.props.errorToggle}
                                   />
                                 ) : null}
-                              </div>
+                              </span>
                             </td>
-                            {type !== "entity" ? <th>Owner: </th> : null}
-                            {type !== "entity" ? (
-                              <td>
-                                <span>
-                                  {this.state.showEventData ? (
-                                    <Owner
-                                      key={id}
-                                      data={this.state.headerData.owner}
-                                      type={type}
-                                      id={id}
-                                      updated={this.updated}
-                                      errorToggle={this.props.errorToggle}
-                                    />
-                                  ) : null}
-                                </span>
-                              </td>
-                            ) : null}
-                            {type !== "entity" ? <th>Updated: </th> : null}
-                            {type !== "entity" ? (
-                              <td>
-                                <span id="event_updated">
-                                  {this.state.showEventData ? (
-                                    <EntryDataUpdated
-                                      data={this.state.headerData.updated}
-                                    />
-                                  ) : null}
-                                </span>
-                              </td>
-                            ) : null}
-                            {(type === "event" || type === "incident") &&
-                              this.state.showEventData &&
-                              this.state.headerData.promoted_from.length > 0 ? (
-                                <th>Promoted From:</th>
-                              ) : null}
-                            {(type === "event" || type === "incident") &&
-                              this.state.showEventData &&
-                              this.state.headerData.promoted_from.length > 0 ? (
-                                <PromotedData
-                                  data={this.state.headerData.promoted_from}
-                                  type={type}
-                                  id={id}
-                                />
-                              ) : null}
-                            {type !== "entity" && this.state.showEventData ? (
-                              <Badge
-                                data={this.state.tagData}
-                                id={id}
-                                type={type}
-                                updated={this.updated}
-                                errorToggle={this.props.errorToggle}
-                                badgeType='tag'
-                              />
-                            ) : null}
-                            {type !== "entity" && this.state.showEventData ? (
-                              <Badge
-                                data={this.state.sourceData}
-                                id={id}
-                                type={type}
-                                updated={this.updated}
-                                errorToggle={this.props.errorToggle}
-                                badgeType='source'
-                              />
-                            ) : null}
-                          </tr>
-                        </tbody>
-                      </table>
-                      {/*<DetailHeaderMoreOptions type={type} id={id} data={this.state.headerData} errorToggle={this.props.errorToggle} showData={this.state.showEventData} />*/}
-                    </div>
-                  ) : null}
-                </div>
-                <Notification ref="notificationSystem" />
-                {this.state.exportModal ? (
-                  <ExportModal
-                    type={type}
-                    errorToggle={this.props.errorToggle}
-                    exportToggle={this.exportToggle}
-                    id={id}
-                  />
-                ) : null}
-                {this.state.linkWarningToolbar ? (
-                  <LinkWarning
-                    linkWarningToggle={this.linkWarningToggle}
-                    link={this.state.link}
-                  />
-                ) : null}
-                {this.state.viewedByHistoryToolbar ? (
-                  <ViewedByHistory
-                    viewedByHistoryToggle={this.viewedByHistoryToggle}
-                    id={id}
-                    type={type}
-                    subjectType={subjectType}
-                    viewedby={viewedby}
-                    errorToggle={this.props.errorToggle}
-                  />
-                ) : null}
-                {this.state.changeHistoryToolbar ? (
-                  <ChangeHistory
-                    changeHistoryToggle={this.changeHistoryToggle}
-                    id={id}
-                    type={type}
-                    subjectType={subjectType}
-                    errorToggle={this.props.errorToggle}
-                  />
-                ) : null}
-                {this.state.entitiesToolbar ? (
-                  <Entities
-                    entitiesToggle={this.entitiesToggle}
-                    entityData={this.state.entityData}
-                    flairToolbarToggle={this.flairToolbarToggle}
-                    flairToolbarOff={this.flairToolbarOff}
-                  />
-                ) : null}
-                {this.state.deleteToolbar ? (
-                  <DeleteEvent
-                    subjectType={subjectType}
-                    type={type}
-                    id={id}
-                    deleteToggle={this.deleteToggle}
-                    updated={this.updated}
-                    errorToggle={this.props.errorToggle}
-                    history={this.props.history}
-                  />
-                ) : null}
-                {this.state.showMarkModal ? (
-                  <Mark
-                    modalActive={true}
-                    type={type}
-                    id={id}
-                    string={string}
-                    errorToggle={this.props.errorToggle}
-                    markModalToggle={this.markModalToggle}
-                  />
-                ) : null}
-                {this.state.showLinksModal ? (
-                  <Links
-                    modalActive={true}
-                    type={type}
-                    id={id}
-                    errorToggle={this.props.errorToggle}
-                    linksModalToggle={this.linksModalToggle}
-                  />
-                ) : null}
-                {this.state.showEventData ? (
-                  <SelectedHeaderOptions
-                    type={type}
-                    subjectType={subjectType}
-                    id={id}
-                    headerData={this.state.headerData}
-                    status={this.state.headerData.status}
-                    promoteToggle={this.promoteToggle}
-                    permissionsToggle={this.permissionsToggle}
-                    entryToggle={this.entryToggle}
-                    entitiesToggle={this.entitiesToggle}
-                    changeHistoryToggle={this.changeHistoryToggle}
-                    viewedByHistoryToggle={this.viewedByHistoryToggle}
-                    exportToggle={this.exportToggle}
-                    deleteToggle={this.deleteToggle}
-                    updated={this.updated}
-                    alertSelected={this.state.alertSelected}
-                    aIndex={this.state.aIndex}
-                    aType={this.state.aType}
-                    aStatus={this.state.aStatus}
-                    flairToolbarToggle={this.flairToolbarToggle}
-                    flairToolbarOff={this.flairToolbarOff}
-                    sourceToggle={this.sourceToggle}
-                    guideID={this.state.guideID}
-                    subjectName={this.state.headerData.subject}
-                    fileUploadToggle={this.fileUploadToggle}
-                    fileUploadToolbar={this.state.fileUploadToolbar}
-                    guideRedirectToAlertListWithFilter={
-                      this.guideRedirectToAlertListWithFilter
-                    }
-                    showSignatureOptionsToggle={this.showSignatureOptionsToggle}
-                    markModalToggle={this.markModalToggle}
-                    linksModalToggle={this.linksModalToggle}
-                    ToggleProcessingMessage={this.ToggleProcessingMessage}
-                    errorToggle={this.props.errorToggle}
-                    toggleFlair={this.toggleFlair}
-                  />
-                ) : null}
-                {this.state.permissionsToolbar ? (
-                  <SelectedPermission
-                    updateid={id}
-                    id={id}
-                    type={type}
-                    permissionData={this.state.headerData}
-                    permissionsToggle={this.permissionsToggle}
-                    updated={this.updated}
-                    errorToggle={this.props.errorToggle}
-                  />
+                          ) : null}
+                          {type !== "entity" ? <th>Updated: </th> : null}
+                          {type !== "entity" ? (
+                            <td>
+                              <span id="event_updated">
+                                {this.state.showEventData ? (
+                                  <EntryDataUpdated
+                                    data={this.state.headerData.updated}
+                                  />
+                                ) : null}
+                              </span>
+                            </td>
+                          ) : null}
+                          {(type === "event" || type === "incident") &&
+                          this.state.showEventData &&
+                          this.state.headerData.promoted_from.length > 0 ? (
+                            <th>Promoted From:</th>
+                          ) : null}
+                          {(type === "event" || type === "incident") &&
+                          this.state.showEventData &&
+                          this.state.headerData.promoted_from.length > 0 ? (
+                            <PromotedData
+                              data={this.state.headerData.promoted_from}
+                              type={type}
+                              id={id}
+                            />
+                          ) : null}
+                          {type !== "entity" && this.state.showEventData ? (
+                            <Badge
+                              data={this.state.tagData}
+                              id={id}
+                              type={type}
+                              updated={this.updated}
+                              errorToggle={this.props.errorToggle}
+                              badgeType="tag"
+                            />
+                          ) : null}
+                          {type !== "entity" && this.state.showEventData ? (
+                            <Badge
+                              data={this.state.sourceData}
+                              id={id}
+                              type={type}
+                              updated={this.updated}
+                              errorToggle={this.props.errorToggle}
+                              badgeType="source"
+                            />
+                          ) : null}
+                        </tr>
+                      </tbody>
+                    </table>
+                    {/*<DetailHeaderMoreOptions type={type} id={id} data={this.state.headerData} errorToggle={this.props.errorToggle} showData={this.state.showEventData} />*/}
+                  </div>
                 ) : null}
               </div>
-              {this.state.showEventData && type !== "entity" ? (
-                <SelectedEntry
+              <Notification ref="notificationSystem" />
+              {this.state.exportModal ? (
+                <ExportModal
+                  type={type}
+                  errorToggle={this.props.errorToggle}
+                  exportToggle={this.exportToggle}
+                  id={id}
+                />
+              ) : null}
+              {this.state.linkWarningToolbar ? (
+                <LinkWarning
+                  linkWarningToggle={this.linkWarningToggle}
+                  link={this.state.link}
+                />
+              ) : null}
+              {this.state.viewedByHistoryToolbar ? (
+                <ViewedByHistory
+                  viewedByHistoryToggle={this.viewedByHistoryToggle}
                   id={id}
                   type={type}
-                  entryToggle={this.entryToggle}
-                  updated={this.updated}
-                  entryData={this.state.entryData}
+                  subjectType={subjectType}
+                  viewedby={viewedby}
+                  errorToggle={this.props.errorToggle}
+                />
+              ) : null}
+              {this.state.changeHistoryToolbar ? (
+                <ChangeHistory
+                  changeHistoryToggle={this.changeHistoryToggle}
+                  id={id}
+                  type={type}
+                  subjectType={subjectType}
+                  errorToggle={this.props.errorToggle}
+                />
+              ) : null}
+              {this.state.entitiesToolbar ? (
+                <Entities
+                  entitiesToggle={this.entitiesToggle}
                   entityData={this.state.entityData}
-                  headerData={this.state.headerData}
-                  showEntryData={this.state.showEntryData}
-                  showEntityData={this.state.showEntityData}
-                  alertSelected={this.alertSelected}
-                  summaryUpdate={this.summaryUpdate}
                   flairToolbarToggle={this.flairToolbarToggle}
                   flairToolbarOff={this.flairToolbarOff}
-                  linkWarningToggle={this.linkWarningToggle}
-                  entryToolbar={this.state.entryToolbar}
-                  isAlertSelected={this.state.alertSelected}
-                  aType={this.state.aType}
-                  aID={this.state.aID}
-                  alertPreSelectedId={this.props.alertPreSelectedId}
+                />
+              ) : null}
+              {this.state.deleteToolbar ? (
+                <div>
+                  {this.state.deleteType !== "alert" ? (
+                    <DeleteThingComponent
+                      deleteType={this.state.deleteType}
+                      subjectType={subjectType}
+                      id={id}
+                      deleteToggle={this.deleteToggle}
+                      updated={this.updated}
+                      errorToggle={this.props.errorToggle}
+                      history={this.props.history}
+                      removeCallback={this.props.removeCallback}
+                    />
+                  ) : (
+                    <DeleteThingComponent
+                      deleteType={this.state.deleteType}
+                      type={type}
+                      deleteToggle={this.deleteToggle}
+                      updated={this.updated}
+                      errorToggle={this.props.errorToggle}
+                      history={this.props.history}
+                      alertsSelected={this.state.alertsSelected}
+                      removeCallback={this.props.removeCallback}
+                    />
+                  )}
+                </div>
+              ) : null}
+              {this.state.showMarkModal ? (
+                <Mark
+                  modalActive={true}
+                  type={type}
+                  id={id}
+                  string={string}
                   errorToggle={this.props.errorToggle}
+                  markModalToggle={this.markModalToggle}
+                />
+              ) : null}
+              {this.state.showLinksModal ? (
+                <Links
+                  modalActive={true}
+                  type={type}
+                  id={id}
+                  errorToggle={this.props.errorToggle}
+                  linksModalToggle={this.linksModalToggle}
+                />
+              ) : null}
+              {this.state.showEventData ? (
+                <SelectedHeaderOptions
+                  type={type}
+                  subjectType={subjectType}
+                  id={id}
+                  entryData={this.state.entryData}
+                  headerData={this.state.headerData}
+                  status={this.state.headerData.status}
+                  promoteToggle={this.promoteToggle}
+                  permissionsToggle={this.permissionsToggle}
+                  entryToggle={this.entryToggle}
+                  entitiesToggle={this.entitiesToggle}
+                  changeHistoryToggle={this.changeHistoryToggle}
+                  viewedByHistoryToggle={this.viewedByHistoryToggle}
+                  exportToggle={this.exportToggle}
+                  deleteToggle={this.deleteToggle}
+                  updated={this.updated}
+                  flairToolbarToggle={this.flairToolbarToggle}
+                  flairToolbarOff={this.flairToolbarOff}
+                  sourceToggle={this.sourceToggle}
+                  subjectName={this.state.headerData.subject}
                   fileUploadToggle={this.fileUploadToggle}
                   fileUploadToolbar={this.state.fileUploadToolbar}
-                  showSignatureOptions={this.state.showSignatureOptions}
-                  flairOff={this.state.flairOff}
-                  highlightedText={this.state.highlightedText}
-                  form={this.props.form}
-                  createCallback={this.props.createCallback}
-                  removeCallback={this.props.removeCallback}
+                  guideRedirectToAlertListWithFilter={
+                    this.guideRedirectToAlertListWithFilter
+                  }
+                  showSignatureOptionsToggle={this.showSignatureOptionsToggle}
+                  markModalToggle={this.markModalToggle}
+                  linksModalToggle={this.linksModalToggle}
+                  ToggleProcessingMessage={this.ToggleProcessingMessage}
+                  errorToggle={this.props.errorToggle}
+                  toggleFlair={this.toggleFlair}
+                  alertsSelected={this.state.alertsSelected}
+                  guideID={this.state.guideID}
                 />
               ) : null}
-              {this.state.showEventData && type === "entity" ? (
-                <EntityDetail
-                  entityid={id}
-                  form={this.props.form}
-                  entitytype={"entity"}
+              {this.state.permissionsToolbar ? (
+                <SelectedPermission
+                  updateid={id}
                   id={id}
-                  type={"entity"}
-                  fullScreen={true}
+                  type={type}
+                  permissionData={this.state.headerData}
+                  permissionsToggle={this.permissionsToggle}
+                  updated={this.updated}
                   errorToggle={this.props.errorToggle}
-                  linkWarningToggle={this.linkWarningToggle}
-                  createCallback={this.props.createCallback}
-                  removeCallback={this.props.removeCallback}
-                />
-              ) : null}
-              {this.state.flairToolbar ? (
-                <EntityDetail
-                  key={this.state.entityDetailKey}
-                  form={this.props.form}
-                  flairToolbarToggle={this.flairToolbarToggle}
-                  flairToolbarOff={this.flairToolbarOff}
-                  linkWarningToggle={this.linkWarningToggle}
-                  entityid={parseInt(this.state.entityid, 10)}
-                  data={this.state.headerData}
-                  entityvalue={this.state.entityvalue}
-                  entitytype={this.state.entitytype}
-                  type={this.props.type}
-                  id={this.props.id}
-                  errorToggle={this.props.errorToggle}
-                  entityoffset={this.state.entityoffset}
-                  watcher={this.Watcher}
-                  entityobj={this.state.entityobj}
-                  createCallback={this.props.createCallback}
-                  removeCallback={this.props.removeCallback}
                 />
               ) : null}
             </div>
-          )}
+            {this.state.showEventData && type !== "entity" ? (
+              <SelectedEntry
+                id={id}
+                type={type}
+                entryToggle={this.entryToggle}
+                updated={this.updated}
+                entryData={this.state.entryData}
+                headerData={this.state.headerData}
+                showEntryData={this.state.showEntryData}
+                showEntityData={this.state.showEntityData}
+                summaryUpdate={this.summaryUpdate}
+                flairToolbarToggle={this.flairToolbarToggle}
+                flairToolbarOff={this.flairToolbarOff}
+                linkWarningToggle={this.linkWarningToggle}
+                entryToolbar={this.state.entryToolbar}
+                alertPreSelectedId={this.props.alertPreSelectedId}
+                errorToggle={this.props.errorToggle}
+                fileUploadToggle={this.fileUploadToggle}
+                fileUploadToolbar={this.state.fileUploadToolbar}
+                showSignatureOptions={this.state.showSignatureOptions}
+                flairOff={this.state.flairOff}
+                highlightedText={this.state.highlightedText}
+                form={this.props.form}
+                createCallback={this.props.createCallback}
+                removeCallback={this.props.removeCallback}
+                addFlair={AddFlair.entityUpdate}
+                handleSelection={this.handleSelection}
+                handleShiftSelect={this.handleShiftSelect}
+                handleMultiSelection={this.handleMultiSelection}
+                handleSelectAll={this.handleSelectAll}
+                alertsSelected={this.state.alertsSelected}
+              />
+            ) : null}
+            {this.state.showEventData && type === "entity" ? (
+              <EntityDetail
+                entityid={id}
+                form={this.props.form}
+                entitytype={"entity"}
+                id={id}
+                type={"entity"}
+                fullScreen={true}
+                errorToggle={this.props.errorToggle}
+                linkWarningToggle={this.linkWarningToggle}
+                createCallback={this.props.createCallback}
+                removeCallback={this.props.removeCallback}
+              />
+            ) : null}
+            {this.state.flairToolbar ? (
+              <EntityDetail
+                key={this.state.entityDetailKey}
+                form={this.props.form}
+                flairToolbarToggle={this.flairToolbarToggle}
+                flairToolbarOff={this.flairToolbarOff}
+                linkWarningToggle={this.linkWarningToggle}
+                entityid={parseInt(this.state.entityid, 10)}
+                data={this.state.headerData}
+                entityvalue={this.state.entityvalue}
+                entitytype={this.state.entitytype}
+                type={this.props.type}
+                id={this.props.id}
+                errorToggle={this.props.errorToggle}
+                entityoffset={this.state.entityoffset}
+                watcher={this.Watcher}
+                entityobj={this.state.entityobj}
+                createCallback={this.props.createCallback}
+                removeCallback={this.props.removeCallback}
+              />
+            ) : null}
+          </div>
+        )}
       </div>
     );
-  };
+  }
 }
 
 class EntryDataUpdated extends React.Component {
@@ -966,7 +1220,7 @@ class EntryDataUpdated extends React.Component {
         <ReactTime value={data * 1000} format="MM/DD/YY hh:mm:ss a" />
       </div>
     );
-  };
+  }
 }
 
 class EntryDataSubject extends React.Component {
@@ -998,12 +1252,12 @@ class EntryDataSubject extends React.Component {
         url: "scot/api/v2/" + this.props.type + "/" + this.props.id,
         data: JSON.stringify(json),
         contentType: "application/json; charset=UTF-8",
-        success: function (data) {
+        success: function(data) {
           console.log("success: " + data);
           this.setState({ value: newValue });
           this.calculateWidth(newValue);
         }.bind(this),
-        error: function (result) {
+        error: function(result) {
           this.props.errorToggle(
             "error: Failed to update the subject/name",
             result
@@ -1015,7 +1269,7 @@ class EntryDataSubject extends React.Component {
 
   componentDidMount() {
     this.calculateWidth(this.state.value);
-  };
+  }
 
   onChange = e => {
     this.setState({ value: e.target.value });
@@ -1066,5 +1320,5 @@ class EntryDataSubject extends React.Component {
         />
       </div>
     );
-  };
+  }
 }

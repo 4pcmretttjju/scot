@@ -64,7 +64,3 @@ RUN cd /usr/share/GeoIP/ && \
 
 RUN mkdir /opt/scot/etc/ && \ 
     bash /opt/scot/bin/download_public_suffix.sh
-
-
-
-

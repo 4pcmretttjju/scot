@@ -5,13 +5,16 @@ import Button from "react-bootstrap/lib/Button.js";
 import Promote from "../components/promote.js";
 import Marker from "../components/marker.js";
 import TrafficLightProtocol from "../components/traffic_light_protocol.js";
+import { CSVLink } from "react-csv";
+import { put_data } from "../utils/XHR";
 
 export default class SelectedHeaderOptions extends React.Component {
   constructor(props) {
     super(props);
     this.state = {
       globalFlairState: true,
-      promoteRemaining: null
+      promoteRemaining: null,
+      dataToDownload: []
     };
   }
 
@@ -19,7 +22,7 @@ export default class SelectedHeaderOptions extends React.Component {
     let newGlobalFlairState = !this.state.globalFlairState;
     this.props.toggleFlair();
     $("iframe").each(
-      function (index, ifr) {
+      function(index, ifr) {
         if (ifr.contentDocument != null) {
           let ifrContents = $(ifr).contents();
           let off = ifrContents.find(".entity-off");
@@ -27,14 +30,14 @@ export default class SelectedHeaderOptions extends React.Component {
           if (this.state.globalFlairState === false) {
             ifrContents.find(".extras").show();
             ifrContents.find(".flair-off").hide();
-            off.each(function (index, entity) {
+            off.each(function(index, entity) {
               $(entity).addClass("entity");
               $(entity).removeClass("entity-off");
             });
           } else {
             ifrContents.find(".extras").hide();
             ifrContents.find(".flair-off").show();
-            on.each(function (index, entity) {
+            on.each(function(index, entity) {
               $(entity).addClass("entity-off");
               $(entity).removeClass("entity");
             });
@@ -45,269 +48,156 @@ export default class SelectedHeaderOptions extends React.Component {
     this.setState({ globalFlairState: newGlobalFlairState });
   };
 
-  //All methods containing alert are only used by selected_entry when viewing an alertgroupand interacting with an alert.
-  alertOpenSelected = () => {
-    let array = [];
-    $("tr.selected").each(function (index, tr) {
-      let id = $(tr).attr("id");
-      array.push({ id: id, status: "open" });
+  alertOpenOrCloseSelected = flag => {
+    let iterarray = [];
+    if (this.props.alertsSelected.length > 0) {
+      iterarray = this.props.alertsSelected;
+    } else if (this.props.entryData.length > 0) {
+      iterarray = this.props.entryData;
+    }
+    let array = iterarray.map(function(alert) {
+      let object = { id: alert.id, status: flag };
+      if (flag === "closed") {
+        object["closed"] = Math.round(new Date().getTime() / 1000);
+      }
+      return object;
     });
-    let data = JSON.stringify({ alerts: array });
+
+    let data = { alerts: array };
 
     this.props.ToggleProcessingMessage(true);
-
-    $.ajax({
-      type: "put",
-      url: "/scot/api/v2/" + this.props.type + "/" + this.props.id,
-      data: data,
-      contentType: "application/json; charset=UTF-8",
-      success: function () {
-        console.log("success");
-        this.props.ToggleProcessingMessage(false);
-      }.bind(this),
-      error: function (data) {
-        this.props.errorToggle("failed to open selected alerts", data);
-        this.props.ToggleProcessingMessage(false);
-      }.bind(this)
-    });
-  };
-
-  alertCloseSelected = () => {
-    let time = Math.round(new Date().getTime() / 1000);
-    let array = [];
-    $("tr.selected").each(function (index, tr) {
-      let id = $(tr).attr("id");
-      array.push({ id: id, status: "closed", closed: time });
-    });
-    let data = JSON.stringify({ alerts: array });
-
-    this.props.ToggleProcessingMessage(true);
-
-    $.ajax({
-      type: "put",
-      url: "/scot/api/v2/" + this.props.type + "/" + this.props.id,
-      data: data,
-      contentType: "application/json; charset=UTF-8",
-      success: function () {
-        console.log("success");
-        this.props.ToggleProcessingMessage(false);
-      }.bind(this),
-      error: function (data) {
-        this.props.errorToggle("failed to close selected alerts", data);
-        this.props.ToggleProcessingMessage(false);
-      }.bind(this)
-    });
+    let endpoint = `/scot/api/v2/${this.props.type}/${this.props.id}`;
+    let response = put_data(endpoint, data);
+    response
+      .then(
+        function() {
+          console.log("success");
+          this.props.ToggleProcessingMessage(false);
+        }.bind(this)
+      )
+      .catch(
+        function(data) {
+          this.props.errorToggle(`failed to ${flag} selected alerts`, data);
+          this.props.ToggleProcessingMessage(false);
+        }.bind(this)
+      );
   };
 
   alertPromoteSelected = () => {
     let data = JSON.stringify({ promote: "new" });
-    let array = [];
-    $("tr.selected").each(function (index, tr) {
-      let id = $(tr).attr("id");
-      array.push(id);
-    });
+    let array = this.props.alertsSelected.map(alert => alert.id);
 
     this.props.ToggleProcessingMessage(true);
 
     //Start by promoting the first one in the array
-    $.ajax({
-      type: "put",
-      url: "/scot/api/v2/alert/" + array[0],
-      data: data,
-      contentType: "application/json; charset=UTF-8",
-      success: function (response) {
-        //With the entry number, promote the others into the existing event
+    let endpoint = `/scot/api/v2/alert/${array[0]}`;
+    let response = put_data(endpoint, data);
+    response.then(
+      function(response) {
         let promoteTo = {
-          promote: response.pid
+          promote: response.data.pid
         };
-
-        if (array.length == 1) {
+        if (array.length === 1) {
           this.props.ToggleProcessingMessage(false);
         }
-
-        for (let i = 1; i < array.length; i++) {
-          $.ajax({
-            type: "put",
-            url: "/scot/api/v2/alert/" + array[i],
-            data: JSON.stringify(promoteTo),
-            contentType: "application/json; charset=UTF-8",
-            success: function () {
-              console.log("success");
-              if (i + 1 == array.length) {
-                this.props.ToggleProcessingMessage(false);
-              }
-            }.bind(this),
-            error: function (data) {
-              this.props.errorToggle(
-                "failed to promoted selected alerts",
-                data
-              );
-            }.bind(this)
-          });
-        }
-      }.bind(this),
-      error: function (data) {
-        this.props.errorToggle("failed to promoted selected alerts", data);
+        array.forEach(
+          function(alert_id, index) {
+            if (index === 0) {
+              console.log("promoting rest of alerts");
+            } else {
+              let endpoint = `/scot/api/v2/alert/${alert_id}`;
+              let response2 = put_data(endpoint, promoteTo);
+              response2
+                .then(
+                  function() {
+                    if (index + 1 === array.length) {
+                      this.props.ToggleProcessingMessage(false);
+                    }
+                  }.bind(this)
+                )
+                .catch(
+                  function(data) {
+                    this.props.errorToggle(
+                      "failed to promoted selected alerts",
+                      data
+                    );
+                  }.bind(this)
+                );
+            }
+          }.bind(this)
+        );
       }.bind(this)
-    });
+    );
   };
-  /*Future use?
-    alertUnpromoteSelected: function() {
-        var data = JSON.stringify({unpromote:this.props.aIndex})
-        var array = [];
-        $('tr.selected').each(function(index,tr) {
-            var id = $(tr).attr('id');
-            array.push(id);
-        }.bind(this));
-        for (i=0; i < array.length; i++) {
-            $.ajax({
-                type:'put',
-                url: '/scot/api/v2/alert/'+array[i],
-                data: data,
-                contentType: 'application/json; charset=UTF-8',
-                success: function(response){
-                    console.log('success');
-                }.bind(this),
-                error: function() {
-                    console.log('failure');
-                }.bind(this)
-            })
-        }
-    },*/
+
   alertSelectExisting = () => {
     let text = prompt("Please Enter Event ID to promote into");
-    let array = [];
     if (text !== "" && text !== null) {
-      $("tr.selected").each(function (index, tr) {
-        let id = $(tr).attr("id");
-        array.push(id);
-      });
-      for (let i = 0; i < array.length; i++) {
-        if ($.isNumeric(text)) {
-          let data = {
-            promote: parseInt(text, 10)
-          };
-          $.ajax({
-            type: "PUT",
-            url: "/scot/api/v2/alert/" + array[i],
-            data: JSON.stringify(data),
-            contentType: "application/json; charset=UTF-8",
-            success: function () {
-              if ($.isNumeric(text)) {
-                window.open("#/event/" + text);
-              }
-            },
-            error: function (data) {
-              this.props.errorToggle(
-                "failed to promote into existing event",
-                data
-              );
-            }.bind(this)
-          });
-        } else {
-          prompt("Please use numbers only");
-          this.selectExisting();
-        }
-      }
+      this.props.alertsSelected.forEach(
+        function(alert) {
+          let data = { promote: parseInt(text, 10) };
+          let endpoint = `/scot/api/v2/alert/${alert.id}`;
+          let response = put_data(endpoint, data);
+          response
+            .then(function() {
+              window.open("#/event/" + text);
+            })
+            .catch(
+              function() {
+                prompt("Please use numbers only");
+                this.selectExisting();
+              }.bind(this)
+            );
+        }.bind(this)
+      );
     }
   };
 
   alertExportCSV = () => {
-    let keys = [];
-    $(".alertTableHorizontal")
-      .find("th")
-      .each(function (key, value) {
-        let obj = $(value).text();
-        keys.push(obj);
-      });
-    let csv = "";
-    $("tr.selected").each(function (x, y) {
-      let storearray = [];
-      $(y)
-        .find("td")
-        .each(function (x, y) {
-          let copy = $(y).clone(false);
-          $(copy)
-            .find(".extras")
-            .remove();
-          let value = $(copy).text();
-          value = value.replace(/,/g, "|");
-          storearray.push(value);
+    const currentRecords = this.props.alertsSelected;
+    var data_to_download = [];
+    currentRecords.forEach(
+      function(row) {
+        Object.keys(row).forEach(function(key) {
+          //here lets strip html tags
+          if (typeof row[key] === "string") {
+            let regex = /(<([^>]+)>)/gi;
+            let body = row[key];
+            row[key] = body.replace(regex, "");
+          }
         });
-      csv += storearray.join() + "\n";
-    });
-    let result = keys.join() + "\n";
-    csv = result + csv;
-    let data_uri = "data:text/csv;charset=utf-8," + encodeURIComponent(csv);
-    window.open(data_uri);
-  };
+        data_to_download.push(row);
+      }.bind(this)
+    );
 
-  alertDeleteSelected = () => {
-    //TODO: FIX IMMEDIATELY
-    // if (
-    //   confirm("Are you sure you want to Delete? This action can not be undone.")
-    // ) {
-    //   let array = [];
-    //   $("tr.selected").each(
-    //     function(index, tr) {
-    //       let id = $(tr).attr("id");
-    //       array.push(id);
-    //     }.bind(this)
-    //   );
-    //   for (let i = 0; i < array.length; i++) {
-    //     $.ajax({
-    //       type: "delete",
-    //       url: "/scot/api/v2/alert/" + array[i],
-    //       success: function() {
-    //         console.log("success");
-    //       }.bind(this),
-    //       error: function(data) {
-    //         this.props.errorToggle("failed to delete selected alerts", data);
-    //       }.bind(this)
-    //     });
-    //   }
-    // }
-    let array = [];
-    $("tr.selected").each(function (index, tr) {
-      let id = $(tr).attr("id");
-      array.push(id);
+    this.setState({ dataToDownload: data_to_download }, () => {
+      // click the CSVLink component to trigger the CSV download
+      this.csvLink.link.click();
     });
-    for (let i = 0; i < array.length; i++) {
-      $.ajax({
-        type: "delete",
-        url: "/scot/api/v2/alert/" + array[i],
-        success: function () {
-          console.log("success");
-        },
-        error: function (data) {
-          this.props.errorToggle("failed to delete selected alerts", data);
-        }.bind(this)
-      });
-    }
   };
 
   PrintPrepare = () => {
     $("iframe")
       .contents()
-      .each(function (x, y) {
+      .each(function(x, y) {
         $(y)
           .find("blockquote")
-          .each(function (index, block) {
+          .each(function(index, block) {
             $(block).css({ "max-height": "5000px" });
           });
         $(y)
           .find("pre")
-          .each(function (index, pre) {
+          .each(function(index, pre) {
             $(pre).css({ "max-height": "5000px", "word-wrap": "break-word" });
           });
       });
     setTimeout(
-      function () {
+      function() {
         this.forceUpdate();
       }.bind(this),
       500
     );
-    setTimeout(function () {
+    setTimeout(function() {
       $("#print-button").click();
     }, 1000);
   };
@@ -320,7 +210,7 @@ export default class SelectedHeaderOptions extends React.Component {
     //open, close SELECTED alerts
     if (this.props.type === "alertgroup" || this.props.type === "alert") {
       $("#main-detail-container").keydown(
-        function (event) {
+        function(event) {
           if ($("input").is(":focus")) {
             return;
           }
@@ -328,19 +218,19 @@ export default class SelectedHeaderOptions extends React.Component {
             event.keyCode === 79 &&
             (event.ctrlKey !== true && event.metaKey !== true)
           ) {
-            this.alertOpenSelected();
+            this.alertOpenOrCloseSelected("open");
           }
           if (
             event.keyCode === 67 &&
             (event.ctrlKey !== true && event.metaKey !== true)
           ) {
-            this.alertCloseSelected();
+            this.alertOpenOrCloseSelected("closed");
           }
         }.bind(this)
       );
     }
     $("#main-detail-container").keydown(
-      function (event) {
+      function(event) {
         if ($("input").is(":focus")) {
           return;
         }
@@ -390,10 +280,10 @@ export default class SelectedHeaderOptions extends React.Component {
       url: "/scot/api/v2/guide",
       data: data,
       contentType: "application/json; charset=UTF-8",
-      success: function (response) {
+      success: function(response) {
         window.open("/#/guide/" + response.id);
       },
-      error: function (data) {
+      error: function(data) {
         this.props.errorToggle("failed to create a new guide", data);
       }.bind(this)
     });
@@ -404,10 +294,10 @@ export default class SelectedHeaderOptions extends React.Component {
       url: "/scot/api/v2/" + this.props.type + "/" + this.props.id,
       data: JSON.stringify({ parsed: 0 }),
       contentType: "application/json; charset=UTF-8",
-      success: function () {
+      success: function() {
         console.log("reparsing started");
       },
-      error: function (data) {
+      error: function(data) {
         this.props.errorToggle("failed to reparse flair", data);
       }.bind(this)
     });
@@ -423,11 +313,11 @@ export default class SelectedHeaderOptions extends React.Component {
         status: "disabled"
       }),
       contentType: "application/json; charset=UTF-8",
-      success: function (response) {
+      success: function(response) {
         const url = "/#/signature/" + response.id;
         window.open(url, "_blank");
       },
-      error: function (data) {
+      error: function(data) {
         this.props.errorToggle("failed to create a signature", data);
       }.bind(this)
     });
@@ -592,7 +482,7 @@ export default class SelectedHeaderOptions extends React.Component {
           <Button
             bsStyle="danger"
             eventkey="9"
-            onClick={this.props.deleteToggle}
+            onClick={() => this.props.deleteToggle(type)}
             bsSize="xsmall"
           >
             <i className="fa fa-trash" aria-hidden="true" /> Delete{" "}
@@ -617,193 +507,41 @@ export default class SelectedHeaderOptions extends React.Component {
         </div>
       );
     } else {
-      if (this.props.aIndex !== undefined) {
-        return (
-          <div className="entry-header second-menu detail-buttons">
+      return (
+        <div className="entry-header second-menu detail-buttons">
+          <ButtonGroup style={{ float: "right" }}>
+            <Marker type={type} id={id} string={string} />
+            <Button onClick={this.props.markModalToggle} bsSize="xsmall">
+              Marked Actions
+            </Button>
+            <Button
+              bsStyle="info"
+              eventkey="16"
+              onClick={this.manualUpdate}
+              bsSize="xsmall"
+              style={{ float: "right" }}
+            >
+              <i className="fa fa-refresh" aria-hidden="true" />
+            </Button>
+          </ButtonGroup>
+          <span className="entry-header detail-buttons">
             <Button eventkey="1" onClick={this.toggleFlair} bsSize="xsmall">
               <i className="fa fa-eye-slash" aria-hidden="true" /> Toggle Flair
             </Button>
             <Button eventkey="2" onClick={this.reparseFlair} bsSize="xsmall">
               <i className="fa fa-refresh" aria-hidden="true" /> Reparse Flair
             </Button>
-            {this.props.guideID == null ? null : this.props.guideID.length !== 0 ? (
-              <Button eventkey="3" onClick={this.guideToggle} bsSize="xsmall">
-                <img src="/images/guide.png" alt="" /> Guide
-              </Button>
-            ) : (
+            <span>
+              {this.props.guideID !== null ? (
+                <Button eventkey="3" onClick={this.guideToggle} bsSize="xsmall">
+                  <img src="/images/guide.png" alt="" /> Guide
+                </Button>
+              ) : (
                 <Button eventkey="3" onClick={this.createGuide} bsSize="xsmall">
                   <img src="/images/guide.png" alt="" /> Create Guide
-              </Button>
+                </Button>
               )}
-            {this.props.headerData == null ? null : (
-              <Button eventkey="4" onClick={this.sourceToggle} bsSize="xsmall">
-                <img src="/images/code.png" alt="" /> View Source
-              </Button>
-            )}
-            <Button
-              eventkey="5"
-              onClick={this.props.entitiesToggle}
-              bsSize="xsmall"
-            >
-              <span className="entity">__</span> View Entities
-            </Button>
-            {type === "alertgroup" || type === "event" || type === "intel" ? (
-              <Button
-                eventkey="6"
-                onClick={this.props.viewedByHistoryToggle}
-                bsSize="xsmall"
-              >
-                <img src="/images/clock.png" alt="" /> Viewed By History
-              </Button>
-            ) : null}
-            <Button
-              eventkey="7"
-              onClick={this.props.changeHistoryToggle}
-              bsSize="xsmall"
-            >
-              <img src="/images/clock.png" alt="" /> {subjectType} History
-            </Button>
-            <TrafficLightProtocol
-              type={type}
-              id={id}
-              tlp={this.props.headerData.tlp}
-            />
-            <Button
-              eventkey="8"
-              onClick={this.alertOpenSelected}
-              bsSize="xsmall"
-              bsStyle="danger"
-            >
-              <img src="/images/open.png" alt="" /> Open Selected
-            </Button>
-            <Button
-              eventkey="9"
-              onClick={this.alertCloseSelected}
-              bsSize="xsmall"
-              bsStyle="success"
-            >
-              <i className="fa fa-flag-checkered" aria-hidden="true" /> Close
-              Selected
-            </Button>
-            <Button
-              eventkey="10"
-              onClick={this.alertPromoteSelected}
-              bsSize="xsmall"
-              bsStyle="warning"
-            >
-              <img src="/images/megaphone.png" alt="" /> Promote Selected
-            </Button>
-            <Button
-              eventkey="11"
-              onClick={this.alertSelectExisting}
-              bsSize="xsmall"
-            >
-              <img src="/images/megaphone_plus.png" alt="" /> Add Selected to{" "}
-              <b>Existing Event</b>
-            </Button>
-            <Button
-              eventkey="12"
-              onClick={this.props.entryToggle}
-              bsSize="xsmall"
-            >
-              <i className="fa fa-plus-circle" aria-hidden="true" /> Add Entry
-            </Button>
-            <Button
-              eventkey="13"
-              onClick={this.props.fileUploadToggle}
-              bsSize="xsmall"
-            >
-              <i className="fa fa-upload" aria-hidden="true" /> Upload File
-            </Button>
-            <Button eventkey="14" onClick={this.alertExportCSV} bsSize="xsmall">
-              <img src="/images/csv_text.png" alt="" /> Export to CSV
-            </Button>
-            <Button onClick={this.props.linksModalToggle} bsSize="xsmall">
-              <i className="fa fa-link" aria-hidden="true" /> Links
-            </Button>
-            <Marker
-              type={type}
-              id={id}
-              string={string}
-              isAlert={true}
-              getSelectedAlerts={this.getSelectedAlerts}
-            />
-            <Button bsSize="xsmall" onClick={this.createLinkSignature}>
-              <i className="fa fa-pencil" aria-hidden="true" /> Create & Link
-              Signature
-            </Button>
-            <Button onClick={this.PrintPrepare} bsSize="xsmall" bsStyle="info">
-              <i className="fa fa-print" aria-hidden="true" /> Print
-            </Button>
-            <Button
-              onClick={this.Print}
-              style={{ display: "none" }}
-              id="print-button"
-            />
-            <Button
-              eventkey="15"
-              onClick={this.alertDeleteSelected}
-              bsSize="xsmall"
-              bsStyle="danger"
-            >
-              <i className="fa fa-trash" aria-hidden="true" /> Delete Selected
-            </Button>
-            <Button
-              bsStyle="danger"
-              eventkey="17"
-              onClick={this.props.deleteToggle}
-              bsSize="xsmall"
-            >
-              <i className="fa fa-trash" aria-hidden="true" /> Delete{" "}
-              {subjectType}
-            </Button>
-            <ButtonGroup style={{ float: "right" }}>
-              <Marker type={type} id={id} string={string} />
-              <Button onClick={this.props.markModalToggle} bsSize="xsmall">
-                Marked Actions
-              </Button>
-              <Button
-                bsStyle="info"
-                eventkey="16"
-                onClick={this.manualUpdate}
-                bsSize="xsmall"
-                style={{ float: "right" }}
-              >
-                <i className="fa fa-refresh" aria-hidden="true" />
-              </Button>
-            </ButtonGroup>
-          </div>
-        );
-      } else {
-        return (
-          <div className="entry-header detail-buttons">
-            <Button eventkey="1" onClick={this.toggleFlair} bsSize="xsmall">
-              <i className="fa fa-eye-slash" aria-hidden="true" /> Toggle Flair
-            </Button>
-            <Button eventkey="2" onClick={this.reparseFlair} bsSize="xsmall">
-              <i className="fa fa-refresh" aria-hidden="true" /> Reparse Flair
-            </Button>
-            {this.props.guideID == null ? null : (
-              <span>
-                {this.props.guideID !== 0 ? (
-                  <Button
-                    eventkey="3"
-                    onClick={this.guideToggle}
-                    bsSize="xsmall"
-                  >
-                    <img src="/images/guide.png" alt="" /> Guide
-                  </Button>
-                ) : (
-                    <Button
-                      eventkey="3"
-                      onClick={this.createGuide}
-                      bsSize="xsmall"
-                    >
-                      <img src="/images/guide.png" alt="" /> Create Guide
-                  </Button>
-                  )}
-              </span>
-            )}
+            </span>
             {this.props.headerData == null ? null : (
               <Button eventkey="4" onClick={this.sourceToggle} bsSize="xsmall">
                 <img src="/images/code.png" alt="" /> View Source
@@ -844,9 +582,7 @@ export default class SelectedHeaderOptions extends React.Component {
               <i className="fa fa-pencil" aria-hidden="true" /> Create & Link
               Signature
             </Button>
-            <Button onClick={this.PrintPrepare} bsSize="xsmall" bsStyle="info">
-              <i className="fa fa-print" aria-hidden="true" /> Print
-            </Button>
+
             <Button
               onClick={this.Print}
               style={{ display: "none" }}
@@ -855,30 +591,94 @@ export default class SelectedHeaderOptions extends React.Component {
             <Button
               bsStyle="danger"
               eventkey="8"
-              onClick={this.props.deleteToggle}
+              onClick={() => this.props.deleteToggle(type)}
               bsSize="xsmall"
             >
               <i className="fa fa-trash" aria-hidden="true" /> Delete{" "}
               {subjectType}
             </Button>
-            <ButtonGroup style={{ float: "right" }}>
-              <Marker type={type} id={id} string={string} />
-              <Button onClick={this.props.markModalToggle} bsSize="xsmall">
-                Marked Actions
+          </span>
+          {this.props.alertsSelected.length > 0 ? (
+            <span>
+              <Button
+                eventkey="8"
+                onClick={() => this.alertOpenOrCloseSelected("open")}
+                bsSize="xsmall"
+                bsStyle="danger"
+              >
+                <img src="/images/open.png" alt="" /> Open Selected
               </Button>
               <Button
-                bsStyle="info"
                 eventkey="9"
-                onClick={this.manualUpdate}
+                onClick={() => this.alertOpenOrCloseSelected("closed")}
                 bsSize="xsmall"
-                style={{ float: "right" }}
+                bsStyle="success"
               >
-                <i className="fa fa-refresh" aria-hidden="true" />
+                <i className="fa fa-flag-checkered" aria-hidden="true" /> Close
+                Selected
               </Button>
-            </ButtonGroup>
-          </div>
-        );
-      }
+              <Button
+                eventkey="10"
+                onClick={this.alertPromoteSelected}
+                bsSize="xsmall"
+                bsStyle="warning"
+              >
+                <img src="/images/megaphone.png" alt="" /> Promote Selected
+              </Button>
+              <Button
+                eventkey="11"
+                onClick={this.alertSelectExisting}
+                bsSize="xsmall"
+              >
+                <img src="/images/megaphone_plus.png" alt="" /> Add Selected to{" "}
+                <b>Existing Event</b>
+              </Button>
+              <CSVLink
+                data={this.state.dataToDownload}
+                filename="data.csv"
+                className="hidden"
+                ref={r => (this.csvLink = r)}
+                target="_blank"
+              />
+              <Button
+                eventkey="14"
+                onClick={this.alertExportCSV}
+                bsSize="xsmall"
+              >
+                <img src="/images/csv_text.png" alt="" /> Export to CSV
+              </Button>
+              <Marker
+                type={type}
+                id={id}
+                string={string}
+                isAlert={true}
+                getSelectedAlerts={this.getSelectedAlerts}
+                alertsSelected={this.props.alertsSelected}
+              />
+              <Button
+                onClick={this.PrintPrepare}
+                bsSize="xsmall"
+                bsStyle="info"
+              >
+                <i className="fa fa-print" aria-hidden="true" /> Print
+              </Button>
+              <Button
+                onClick={this.Print}
+                style={{ display: "none" }}
+                id="print-button"
+              />
+              <Button
+                eventkey="15"
+                onClick={() => this.props.deleteToggle("alert")}
+                bsSize="xsmall"
+                bsStyle="danger"
+              >
+                <i className="fa fa-trash" aria-hidden="true" /> Delete Selected
+              </Button>
+            </span>
+          ) : null}
+        </div>
+      );
     }
   };
 }

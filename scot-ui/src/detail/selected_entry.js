@@ -12,8 +12,6 @@ import Summary from "../components/summary";
 import Task from "../components/task";
 import SelectedPermission from "../components/permission.js";
 import Frame from "react-frame-component";
-//import Frame from "../components/frame/src";
-import AddFlair from "../components/add_flair";
 import LinkWarning from "../modal/link_warning";
 import { Link } from "react-router-dom";
 import SignatureTable from "../components/signature_table";
@@ -21,9 +19,15 @@ import TrafficLightProtocol from "../components/traffic_light_protocol";
 import Marker from "../components/marker";
 import EntityCreateModal from "../modal/entity_create";
 import CustomMetaDataTable from "../components/custom_metadata_table";
-import tablesorter from "tablesorter";
-import axios from "axios";
-import { connect } from "net";
+import ReactTable from "react-table";
+import { get_data, put_data, post_data } from "../utils/XHR";
+import AlertSubComponent from "./alert_subcomponent";
+import {
+  buildTypeColumns,
+  customCellRenderers,
+  getColumnWidth
+} from "../list/tableConfig";
+import Button2 from "@material-ui/core/Button";
 
 export default class SelectedEntry extends React.Component {
   constructor(props) {
@@ -49,78 +53,16 @@ export default class SelectedEntry extends React.Component {
   }
 
   componentDidMount() {
-    this.setState({ isMounted: true });
-    if (
-      this.props.type === "alert" ||
-      this.props.type === "entity" ||
-      this.props.isPopUp === 1
-    ) {
-      $.ajax({
-        type: "get",
-        url: "scot/api/v2/" + this.props.type + "/" + this.props.id + "/entry",
-        success: function(result) {
-          let entryResult = result.records;
-          if (this.state.isMounted) {
-            this.setState({ showEntryData: true, entryData: entryResult });
-            for (let i = 0; i < result.records.length; i++) {
-              this.props.createCallback(result.records[i].id, this.updatedCB);
-            }
-            this.Watcher();
-          }
-        }.bind(this),
-        error: function(result) {
-          if (this.state.isMounted) {
-            this.setState({ showEntryData: true });
-            this.props.errorToggle("Failed to load entry data.", result);
-          }
-        }.bind(this)
-      });
-      $.ajax({
-        type: "get",
-        url: "scot/api/v2/" + this.props.type + "/" + this.props.id + "/entity",
-        success: function(result) {
-          let entityResult = result.records;
-          if (this.state.isMounted) {
-            this.setState({ showEntityData: true, entityData: entityResult });
-            let waitForEntry = {
-              waitEntry: function() {
-                if (this.state.showEntryData === false) {
-                  setTimeout(waitForEntry.waitEntry, 50);
-                } else {
-                  setTimeout(
-                    function() {
-                      AddFlair.entityUpdate(
-                        entityResult,
-                        this.flairToolbarToggle,
-                        this.props.type,
-                        this.linkWarningToggle,
-                        this.props.id
-                      );
-                    }.bind(this)
-                  );
-                }
-              }.bind(this)
-            };
-            waitForEntry.waitEntry();
-          }
-        }.bind(this),
-        error: function(result) {
-          if (this.state.isMounted) {
-            this.setState({ showEntityData: true });
-            this.props.errorToggle("Failed to load entity data.", result);
-          }
-        }.bind(this)
-      });
-      this.props.createCallback(this.props.id, this.updatedCB);
-    }
-
+    this.getEntryData();
+    this.getEntityData();
+    this.props.createCallback(this.props.id, this.updatedCB);
     this.containerHeightAdjust();
+
     window.addEventListener("resize", this.containerHeightAdjust);
-    $("#ReactTable").resize(
-      function() {
-        this.containerHeightAdjust();
-      }.bind(this)
-    );
+    let table = document.querySelector(".ReactTable");
+    table.onresize = function() {
+      this.containerHeightAdjust();
+    }.bind(this);
   }
 
   componentWillReceiveProps() {
@@ -137,69 +79,90 @@ export default class SelectedEntry extends React.Component {
     this.setState({ isMounted: false });
   }
 
-  updatedCB = () => {
+  getEntryData = () => {
+    const { type, id } = this.props;
+    this.setState({ isMounted: true });
+    if (type === "alert" || type === "entity" || this.props.isPopUp === 1) {
+      let entry_url = `scot/api/v2/${type}/${id}/entry`;
+      let entry_response = get_data(entry_url, null);
+      entry_response
+        .then(
+          function(response) {
+            if (this.state.isMounted) {
+              this.setState({
+                showEntryData: true,
+                entryData: response.data.records
+              });
+              response.data.records.forEach(
+                function(element, i) {
+                  this.props.createCallback(
+                    response.data.records[i].id,
+                    this.updatedCB
+                  );
+                }.bind(this)
+              );
+              this.Watcher();
+            }
+          }.bind(this)
+        )
+        .catch(
+          function(error) {
+            if (this.state.isMounted) {
+              this.setState({ showEntryData: true });
+              this.props.errorToggle("Failed to load entry data.", error);
+            }
+          }.bind(this)
+        );
+    }
+  };
+
+  getEntityData = () => {
+    const { addFlair, type, id } = this.props;
     if (
-      this.props.type === "alert" ||
-      this.props.type === "entity" ||
+      type === "alert" ||
+      type === "entity" ||
+      type === "incident" ||
       this.props.isPopUp === 1
     ) {
-      $.ajax({
-        type: "get",
-        url: "scot/api/v2/" + this.props.type + "/" + this.props.id + "/entry",
-        success: function(result) {
-          let entryResult = result.records;
-          if (this.state.isMounted) {
-            this.setState({ showEntryData: true, entryData: entryResult });
-            for (let i = 0; i < result.records.length; i++) {
-              this.props.createCallback(result.records[i].id, this.updatedCB);
+      const entity_url = `scot/api/v2/${type}/${id}/entity`;
+      let entity_response = get_data(entity_url, null);
+      entity_response
+        .then(
+          function(response) {
+            let entityResult = response.data.records;
+            if (this.state.isMounted) {
+              this.setState({ showEntityData: true, entityData: entityResult });
+              let waitForEntry = {
+                waitEntry: function() {
+                  if (this.state.showEntryData === false) {
+                    setTimeout(waitForEntry.waitEntry, 50);
+                  } else {
+                    setTimeout(
+                      function() {
+                        addFlair(entityResult, null, type, null, id);
+                      }.bind(this)
+                    );
+                  }
+                }.bind(this)
+              };
+              waitForEntry.waitEntry();
             }
-            this.Watcher();
-          }
-        }.bind(this),
-        error: function(result) {
-          if (this.state.isMounted) {
-            this.setState({ showEntryData: true });
-            this.props.errorToggle("Failed to load entry data ", result);
-          }
-        }.bind(this)
-      });
-      $.ajax({
-        type: "get",
-        url: "scot/api/v2/" + this.props.type + "/" + this.props.id + "/entity",
-        success: function(result) {
-          let entityResult = result.records;
-          if (this.state.isMounted) {
-            this.setState({ showEntityData: true, entityData: entityResult });
-            let waitForEntry = {
-              waitEntry: function() {
-                if (this.state.showEntryData === false) {
-                  setTimeout(waitForEntry.waitEntry, 50);
-                } else {
-                  setTimeout(
-                    function() {
-                      AddFlair.entityUpdate(
-                        entityResult,
-                        this.flairToolbarToggle,
-                        this.props.type,
-                        this.linkWarningToggle,
-                        this.props.id
-                      );
-                    }.bind(this)
-                  );
-                }
-              }.bind(this)
-            };
-            waitForEntry.waitEntry();
-          }
-        }.bind(this),
-        error: function(result) {
-          if (this.state.isMounted) {
-            this.setState({ showEntityData: true });
-            this.props.errorToggle("Failed to load entity data", result);
-          }
-        }.bind(this)
-      });
+          }.bind(this)
+        )
+        .catch(
+          function(data) {
+            if (this.state.isMounted) {
+              this.setState({ showEntityData: true });
+              this.props.errorToggle("Failed to load entity data.", data);
+            }
+          }.bind(this)
+        );
     }
+  };
+
+  updatedCB = () => {
+    this.getEntityData();
+    this.getEntryData();
   };
 
   flairToolbarToggle = (id, value, type, entityoffset, entityobj) => {
@@ -236,39 +199,32 @@ export default class SelectedEntry extends React.Component {
   };
 
   Watcher = () => {
-    let containerid = "#" + this.props.type + "-detail-container";
+    let containerid = this.props.type + "-detail-container";
     if (this.props.type != "alertgroup") {
-      $(containerid)
-        .find("iframe")
-        .each(
-          function(index, ifr) {
-            //requestAnimationFrame waits for the frame to be rendered (allowing the iframe to fully render before excuting the next bit of code!!!
-            ifr.contentWindow.requestAnimationFrame(
-              function() {
-                if (ifr.contentDocument != null) {
-                  let arr = [];
-                  //arr.push(this.props.type);
-                  arr.push(this.checkFlairHover);
-                  $(ifr).off("mouseenter");
-                  $(ifr).off("mouseleave");
-                  $(ifr).on(
-                    "mouseenter",
-                    function(v, type) {
-                      let intervalID = setInterval(this[0], 50, ifr); // this.flairToolbarToggle, type, this.props.linkWarningToggle, this.props.id);
-                      $(ifr).data("intervalID", intervalID);
-                      console.log("Now watching iframe " + intervalID);
-                    }.bind(arr)
-                  );
-                  $(ifr).on("mouseleave", function() {
-                    let intervalID = $(ifr).data("intervalID");
-                    window.clearInterval(intervalID);
-                    console.log("No longer watching iframe " + intervalID);
-                  });
-                }
-              }.bind(this)
-            );
-          }.bind(this)
-        );
+      let selector = `iframe`;
+      let iframes = document.querySelectorAll(selector);
+      iframes.forEach(
+        function(ifr, index) {
+          ifr.contentWindow.requestAnimationFrame(
+            function() {
+              if (ifr.contentDocument != null) {
+                let arr = [];
+                arr.push(this.checkFlairHover);
+                ifr.addEventListener("mouseenter", function(v, type) {
+                  let intervalID = setInterval(this[0], 50, ifr); // this.flairToolbarToggle, type, this.props.linkWarningToggle, this.props.id);
+                  console.log("Now watching iframe " + intervalID);
+                });
+
+                ifr.addEventListener("mouseleave", function() {
+                  let intervalID = $(ifr).data("intervalID");
+                  window.clearInterval(intervalID);
+                  console.log("No longer watching iframe " + intervalID);
+                });
+              }
+            }.bind(this)
+          );
+        }.bind(this)
+      );
     } else {
       $(containerid)
         .find("a, .entity")
@@ -439,55 +395,44 @@ export default class SelectedEntry extends React.Component {
         ) : null}
         {showEntryData ? (
           <EntryIterator
+            updated={this.updatedCB}
+            removeCallback={this.props.removeCallback}
+            createCallback={this.props.createCallback}
             data={data}
             type={type}
             id={id}
-            alertSelected={this.props.alertSelected}
-            headerData={this.props.headerData}
-            alertPreSelectedId={this.props.alertPreSelectedId}
-            isPopUp={this.props.isPopUp}
+            entityData={this.state.entityData}
             entryToggle={this.props.entryToggle}
-            updated={this.updatedCB}
-            aType={this.props.aType}
-            aID={this.props.aID}
-            entryToolbar={this.props.entryToolbar}
-            errorToggle={this.props.errorToggle}
-            fileUploadToggle={this.props.fileUploadToggle}
-            fileUploadToolbar={this.props.fileUploadToolbar}
-            flairOff={this.props.flairOff}
-            createCallback={this.props.createCallback}
-            removeCallback={this.props.removeCallback}
+            subcomponent={this.props.subcomponent}
+            setAlertColumns={this.props.setAlertColumns}
+            {...this.props}
           />
         ) : (
           <span>Loading...</span>
         )}
         {this.props.entryToolbar ? (
           <div>
-            {this.props.isAlertSelected === false ? (
-              <AddEntry
-                entryAction={"Add"}
-                type={this.props.type}
-                targetid={this.props.id}
-                id={null}
-                addedentry={this.props.entryToggle}
-                updated={this.updatedCB}
-                errorToggle={this.props.errorToggle}
-              />
-            ) : null}
+            <AddEntry
+              entryAction={"Add"}
+              type={this.props.type}
+              targetid={this.props.id}
+              id={null}
+              addedentry={this.props.entryToggle}
+              updated={this.updatedCB}
+              errorToggle={this.props.errorToggle}
+            />
           </div>
         ) : null}
         {this.props.fileUploadToolbar ? (
           <div>
-            {this.props.isAlertSelected === false ? (
-              <FileUpload
-                type={this.props.type}
-                targetid={this.props.id}
-                id={"file_upload"}
-                fileUploadToggle={this.props.fileUploadToggle}
-                updated={this.updatedCB}
-                errorToggle={this.props.errorToggle}
-              />
-            ) : null}
+            <FileUpload
+              type={this.props.type}
+              targetid={this.props.id}
+              id={"file_upload"}
+              fileUploadToggle={this.props.fileUploadToggle}
+              updated={this.updatedCB}
+              errorToggle={this.props.errorToggle}
+            />
           </div>
         ) : null}
         {this.state.flairToolbar ? (
@@ -500,8 +445,6 @@ export default class SelectedEntry extends React.Component {
             entitytype={this.state.entitytype}
             type={this.props.type}
             id={this.props.id}
-            aID={this.props.aID}
-            aType={this.props.aType}
             entityoffset={this.state.entityoffset}
             entityobj={this.state.entityobj}
             linkWarningToggle={this.linkWarningToggle}
@@ -526,8 +469,31 @@ class EntryIterator extends React.Component {
     let rows = [];
     let data = this.props.data;
     let type = this.props.type;
+    let items = this.props.items;
+    let linkToSearch = [];
     let id = this.props.id;
-    if (data[0] === undefined) {
+    let entityData = this.props.entityData;
+    let search = null;
+    if (this.props.items !== undefined) {
+      if (
+        this.props.items[0].data_with_flair !== undefined &&
+        !this.props.flairOff
+      ) {
+        search = items[0].data_with_flair.search;
+      } else {
+        search = items[0].data.search;
+      }
+      for (let y = 0; y < this.props.headerData.ahrefs.length; y++) {
+        linkToSearch.push(
+          <a href={this.props.headerData.ahrefs[y].link}>
+            {this.props.headerData.ahrefs[y].subject}
+          </a>
+        );
+        linkToSearch.push(<br />);
+      }
+    }
+
+    if (data === undefined || data[0] === undefined) {
       if (type !== "alertgroup") {
         return (
           <div>
@@ -554,6 +520,7 @@ class EntryIterator extends React.Component {
           function(data) {
             rows.push(
               <EntryParent
+                subcomponent={this.props.subcomponent}
                 key={key}
                 items={data}
                 type={type}
@@ -562,76 +529,76 @@ class EntryIterator extends React.Component {
                 errorToggle={this.props.errorToggle}
                 createCallback={this.props.createCallback}
                 removeCallback={this.props.removeCallback}
+                entityData={entityData}
+                entryToggle={this.props.entryToggle}
               />
             );
             key = key + 1;
           }.bind(this)
         );
+        return <div>{rows}</div>;
       } else {
-        rows.push(
-          <AlertParent
-            key={id}
-            items={data}
-            type={type}
-            id={id}
-            headerData={this.props.headerData}
-            alertSelected={this.props.alertSelected}
-            alertPreSelectedId={this.props.alertPreSelectedId}
-            aType={this.props.aType}
-            aID={this.props.aID}
-            entryToolbar={this.props.entryToolbar}
-            entryToggle={this.props.entryToggle}
-            updated={this.props.updated}
-            fileUploadToggle={this.props.fileUploadToggle}
-            fileUploadToolbar={this.props.fileUploadToolbar}
-            errorToggle={this.props.errorToggle}
-            flairOff={this.props.flairOff}
-            createCallback={this.props.createCallback}
-            removeCallback={this.props.removeCallback}
-          />
+        return (
+          <div>
+            <NewAlertTable
+              subcomponent={this.props.subcomponent}
+              {...this.props}
+              key={id}
+              type={type}
+              id={id}
+              items={data}
+              entityData={entityData}
+              entryToggle={this.props.entryToggle}
+              createCallback={this.props.createCallback}
+              removeCallback={this.props.removeCallback}
+              addFlair={this.props.addFlair}
+              setAlertColumns={this.props.setAlertColumns}
+              updated={this.props.updated}
+            />
+          </div>
         );
       }
-      return <div>{rows}</div>;
     }
   };
 }
 
-class AlertParent extends React.Component {
+class NewAlertTable extends React.Component {
   constructor(props) {
     super(props);
-    let arr = [];
     this.state = {
-      activeIndex: arr,
-      lastIndex: null,
-      allSelected: false,
-      lastId: null,
-      activeId: arr,
-      tableSorterUpdateType: "update"
+      columns: [],
+      data: [],
+      entityData: [],
+      type: "",
+      addFlair: null,
+      promotionId: null,
+      selected: [],
+      flairOff: false,
+      expanded: {}
     };
   }
 
-  componentDidMount = () => {
-    let filterOption = false;
-    let widgetOption = ["sortTbody"];
-    if (this.props.items.length > 1) {
-      filterOption = true;
-      widgetOption = ["sortTbody", "filter"];
+  componentDidMount() {
+    if (this.props.items.length > 0) {
+      const data = this.createData();
+      const columns = buildTypeColumns("alert", data, this.props.items, true);
+      this.setState({ data, columns });
     }
-    $("#sortabletable").tablesorter({
-      widgets: widgetOption,
-      widgetOptions: {
-        sortTbody_primaryRow: ".main",
-        sortTbody_sortRows: false,
-        sortTbody_noSort: "tablesorter-no-sort-tbody",
-        scroller_jumpToHeader: false,
-        scroller_upAfterSort: false,
+    if (this.props.type) {
+      this.setState({
+        type: this.props.type,
+        entityData: this.props.entityData
+      });
+    }
+    if (this.props.addFlair) {
+      this.setState({ addFlair: this.props.addFlair });
+    }
 
-        // include child row content while filtering the second demo table
-        filter_childRows: filterOption
-      }
-    });
+    //handle alertselection from SelectedHeader
+    if (this.props.alertsSelected) {
+      this.setState({ selected: this.props.alertsSelected });
+    }
 
-    //Ctrl + A to select all alerts
     $("#main-detail-container").keydown(
       function(event) {
         //prevent from working when in input
@@ -643,677 +610,203 @@ class AlertParent extends React.Component {
           event.keyCode === 65 &&
           (event.ctrlKey === true || event.metaKey === true)
         ) {
-          this.rowClicked(null, null, "all", null);
+          this.handleSelectAll();
           event.preventDefault();
         }
       }.bind(this)
     );
-  };
+  }
 
-  componentWillUnmount = () => {
-    $("#main-detail-container").unbind("keydown");
-  };
+  componentDidUpdate(prevProps, prevState) {
+    if (prevProps.entityData !== this.props.entityData) {
+      this.setState({ entityData: this.props.entityData });
+    }
+    if (prevState.flairOff !== this.state.flairOff) {
+      let data = this.createData();
+      this.setState({ data });
+    }
+    if (prevProps.items !== this.props.items) {
+      let data = this.createData();
+      this.setState({ data });
+    }
 
-  componentDidUpdate = () => {
-    //update the table, but not if a tinymce editor window is open as it will break the editing window
-
-    // new update 1/29/19 - Adding check if iframes present when performing new gets for alertgroup and alert ie if entries exist and we need to update
     if (
-      !$(".mce-tinymce")[0] &&
-      window.getSelection().toString() === "" &&
-      document.getElementsByTagName("iframe").length == 0
+      this.props.alertsSelected !== prevState.selected &&
+      this.props.alertsSelected !== undefined
     ) {
-      $("#sortabletable").trigger(this.state.tableSorterUpdateType);
+      this.setState({ selected: this.props.alertsSelected });
     }
-  };
+  }
 
-  componentWillReceiveProps = nextProps => {
-    //see: http://adripofjavascript.com/blog/drips/object-equality-in-javascript.html
-    var aProps = Object.getOwnPropertyNames(this.props.headerData);
-    var bProps = Object.getOwnPropertyNames(nextProps.headerData);
-
-    // If number of properties is different,
-    // objects are not equivalent
-    if (aProps.length !== bProps.length) {
-      this.setState({ tableSorterUpdateType: "update" });
-      return;
+  static getDerivedStateFromProps(nextProps, prevState) {
+    if (nextProps.flairOff !== prevState.flairOff) {
+      return { flairOff: nextProps.flairOff };
     }
+    if (nextProps.alertsSelected !== prevState.selected) {
+      return { selected: nextProps.alertsSelected };
+    } else return null;
+  }
 
-    for (var i = 0; i < aProps.length; i++) {
-      var propName = aProps[i];
-
-      // If values of same property are not equal,
-      // objects are not equivalent
-      if (this.props.headerData[propName] !== nextProps.headerData[propName]) {
-        this.setState({ tableSorterUpdateType: "update" });
-        return;
-      }
-    }
-
-    // If we made it this far, objects
-    // are considered equivalent
-    this.setState({ tableSorterUpdateType: "updateCache" });
-    return;
-  };
-
-  rowClicked = (id, index, clickType, status) => {
-    let array = this.state.activeIndex.slice();
-    let activeIdArray = this.state.activeId.slice();
-    let selected = true;
-    this.setState({ allSelected: false });
-    if (clickType === "ctrl") {
-      for (let i = 0; i < activeIdArray.length; i++) {
-        if (activeIdArray[i] === id) {
-          activeIdArray.splice(i, 1);
-          this.setState({ activeId: activeIdArray });
-          selected = false;
-        }
-      }
-      if (selected === true) {
-        activeIdArray.push(id);
-        this.setState({ activeId: activeIdArray });
-      }
-    } else if (clickType === "shift") {
-      let keyObj = {};
-      let i = 0;
-      $(".alertTableHorizontal")
-        .find("tr")
-        .not(".not_selectable")
-        .each(function(index, x) {
-          let id = $(x).attr("id");
-          keyObj[id] = i;
-          i++;
-        });
-      if (this.state.lastId !== undefined) {
-        let min = Math.min(keyObj[this.state.lastId], keyObj[id]);
-        let max = Math.max(keyObj[this.state.lastId], keyObj[id]);
-        //let min = max - min + 1;
-        let range = [];
-        /*while (min--) {
-                    range[min]=max--;
-                }*/
-        for (let q = min; q <= max; q++) {
-          range.push(q);
-        }
-        for (let i = 0; i < range.length; i++) {
-          for (let prop in keyObj) {
-            if (keyObj[prop] === range[i]) {
-              activeIdArray.push(parseInt(prop, 10));
-            }
-          }
-        }
-        this.setState({ activeId: activeIdArray });
-      }
-    } else if (clickType === "all") {
-      activeIdArray = [];
-      for (let i = 0; i < this.props.items.length; i++) {
-        activeIdArray.push(this.props.items[i].id);
-      }
-      this.setState({ activeId: activeIdArray, allSelected: true });
-    } else {
-      activeIdArray = [];
-      activeIdArray.push(id);
-      this.setState({ activeId: activeIdArray });
-    }
-    this.setState({ lastIndex: index, lastId: id });
-    if (activeIdArray.length === 1) {
-      this.props.alertSelected("oneactive", activeIdArray[0], "alert");
-    } else if (activeIdArray.length === 0) {
-      this.props.alertSelected(null, null, "alert");
-    } else {
-      this.props.alertSelected("showall", null, "alert");
-    }
-  };
-
-  render = () => {
-    //let z = 0;
-    let search = null;
-    let items = this.props.items;
-    let body = [];
-    let header = [];
-    let columns = false;
-    let dataColumns = false;
-    let linkToSearch = [];
-    if (items[0] !== undefined) {
-      let col_names;
-      //checking two locations for columns. Will make this a single location in future revision
-
-      if (col_names === undefined) {
-        if (items[0].columns !== undefined) {
-          if (items[0].columns.length !== 0) {
-            col_names = items[0].columns.slice(0); //slices forces a copy of array
-          }
-        }
-      }
-
-      if (col_names === undefined) {
-        if (items[0].data !== undefined) {
-          if (items[0].data.columns !== undefined) {
-            if (items[0].data.columns.length !== 0) {
-              col_names = items[0].data.columns.slice(0);
-            }
-          }
-        }
-      }
-      if (col_names === undefined) {
-        if (this.props.headerData !== undefined) {
-          if (this.props.headerData.columns !== undefined) {
-            if (this.props.headerData.columns.length !== 0) {
-              col_names = this.props.headerData.columns.slice(0);
-            }
-          }
-        }
-      }
-      if (col_names === undefined) {
-        console.log("Error finding columns in JSON");
-        if (this.props.headerData !== undefined) {
-          if (this.props.headerData.body !== undefined) {
-            return (
-              <div>
-                <div style={{ color: "red" }}>
-                  If you see this message, please notify your SCOT admin.
-                  Parsing failed on the message below. The raw alert is
-                  displayed.
-                </div>
-                <div
-                  className="alertTableHorizontal"
-                  dangerouslySetInnerHTML={{
-                    __html: this.props.headerData.body
-                  }}
-                />
-              </div>
-            );
-          }
-        }
-      }
-      col_names.unshift("entries"); //Add entries to 3rd column
-      col_names.unshift("status"); //Add status to 2nd column
-      col_names.unshift("id"); //Add entries number to 1st column
-      for (let i = 0; i < col_names.length; i++) {
-        header.push(<AlertHeader colName={col_names[i]} key={i} />);
-      }
-      for (let z = 0; z < items.length; z++) {
-        let dataFlair = null;
-        if (
-          Object.getOwnPropertyNames(items[z].data_with_flair).length !== 0 &&
-          !this.props.flairOff
-        ) {
-          dataFlair = items[z].data_with_flair;
+  createData = () => {
+    const dataarray = [];
+    this.props.items.forEach(
+      function(element) {
+        let dataitem = {};
+        if (!this.state.flairOff) {
+          dataitem = element.data_with_flair;
         } else {
-          dataFlair = items[z].data;
+          dataitem = element.data;
         }
+        dataitem["id"] = element.id;
+        dataitem["status"] = element.status;
+        dataitem["entry_count"] = element.entry_count;
+        dataarray.push(dataitem);
+      }.bind(this)
+    );
+    return dataarray;
+  };
 
-        body.push(
-          <AlertBody
-            key={z}
-            index={z}
-            data={items[z]}
-            dataFlair={dataFlair}
-            headerData={this.props.headerData}
-            activeIndex={this.state.activeIndex}
-            rowClicked={this.rowClicked}
-            alertSelected={this.props.alertSelected}
-            allSelected={this.state.allSelected}
-            alertPreSelectedId={this.props.alertPreSelectedId}
-            activeId={this.state.activeId}
-            aID={this.props.aID}
-            aType={this.props.aType}
-            entryToggle={this.props.entryToggle}
-            entryToolbar={this.props.entryToolbar}
-            updated={this.props.updated}
-            fileUploadToggle={this.props.fileUploadToggle}
-            fileUploadToolbar={this.props.fileUploadToolbar}
-            errorToggle={this.props.errorToggle}
-            createCallback={this.props.createCallback}
-            removeCallback={this.props.removeCallback}
-          />
-        );
-      }
+  render() {
+    const { data, columns } = this.state;
+    const { addFlair, type, headerData, entityData, updated } = this.props;
 
-      if (items[0].data_with_flair !== undefined && !this.props.flairOff) {
-        search = items[0].data_with_flair.search;
-      } else {
-        search = items[0].data.search;
-      }
-
-      for (let y = 0; y < this.props.headerData.ahrefs.length; y++) {
-        linkToSearch.push(
-          <a href={this.props.headerData.ahrefs[y].link}>
-            {this.props.headerData.ahrefs[y].subject}
-          </a>
-        );
-        linkToSearch.push(<br />);
-      }
-    } else if (this.props.headerData !== undefined) {
-      if (this.props.headerData.body !== undefined) {
-        return (
-          <div>
-            <div style={{ color: "red" }}>
-              If you see this message, please notify your SCOT admin. Parsing
-              failed on the message below. The raw alert is displayed.
-            </div>
-            <div
-              className="alertTableHorizontal"
-              dangerouslySetInnerHTML={{ __html: this.props.headerData.body }}
-            />
-          </div>
-        );
-      }
-    }
     return (
       <div>
-        <div>
-          <table
-            className="tablesorter alertTableHorizontal"
-            id={"sortabletable"}
-            width="100%"
-          >
-            <thead>
-              <tr>{header}</tr>
-            </thead>
-            {body}
-          </table>
-        </div>
+        <ReactTable
+          styleName="styles.ReactTable"
+          ref={r => (this.reactTable = r)}
+          key={2}
+          data={data}
+          columns={columns}
+          filterable={true}
+          expanded={this.state.expanded}
+          onExpandedChange={(expanded, index, event) => {
+            this.setState({ expanded });
+            addFlair(entityData, null, "entry", null, null);
+          }}
+          defaultFilterMethod={(filter, row) => {
+            if (row[filter.id].includes(filter.value)) {
+              return row;
+            }
+          }}
+          SubComponent={({ row }) => {
+            return (
+              <AlertSubComponent
+                flag={this.props.subcomponent}
+                row={row}
+                entryToggle={this.props.entryToggle}
+                errorToggle={this.props.errorToggle}
+                entryData={this.props.entryData}
+                showEntryData={this.props.showEntryData}
+                errorToggle={this.props.errorToggle}
+                createCallback={this.props.createCallback}
+                removeCallback={this.props.removeCallback}
+                entityData={this.props.entityData}
+                addFlair={this.props.addFlair}
+                updated={this.props.updated}
+              />
+            );
+          }}
+          onFilteredChange={(filter, column) => {
+            addFlair(entityData, null, type, null, null);
+          }}
+          onSortedChange={(newSorted, column, shiftKey) => {
+            addFlair(entityData, null, type, null, null);
+          }}
+          showPagination={false}
+          pageSize={data.length}
+          getTrProps={(state, rowInfo) => {
+            if (
+              rowInfo &&
+              rowInfo.row &&
+              this.props.alertsSelected !== undefined
+            ) {
+              return {
+                onClick: e => {
+                  if (e.ctrlKey || (e.metaKey && e.keyCode === 83)) {
+                    this.props.handleSelectAll(state.sortedData);
+                  }
+                  if (e.ctrlKey || e.metaKey) {
+                    e.preventDefault();
+                    this.props.handleMultiSelection(rowInfo.original);
+                  } else if (e.shiftKey) {
+                    document.getSelection().removeAllRanges();
+                    this.props.handleShiftSelect(
+                      this.state.selected[0].id,
+                      rowInfo.original.id,
+                      state.sortedData
+                    );
+                  } else {
+                    this.props.handleSelection(rowInfo.original);
+                  }
+                },
+                style: {
+                  background: this.state.selected.some(
+                    item => rowInfo.original.id === item.id
+                  )
+                    ? "#a7c6a5"
+                    : "",
+                  borderBottom: "1px solid black",
+                  maxHeight: 200,
+                  overflowY: "auto"
+                }
+              };
+            } else {
+              return { style: { maxHeight: 200, overflowY: "auto" } };
+            }
+          }}
+        />
+        <AlertTableSearchDiv
+          items={this.props.items}
+          flairOff={this.props.flairOff}
+          headerData={this.props.headerData}
+        />
+      </div>
+    );
+  }
+}
+
+//div underneath alert table
+class AlertTableSearchDiv extends React.Component {
+  constructor(props) {
+    super(props);
+  }
+
+  render() {
+    let search = null;
+    const { items } = this.props;
+    if (items[0].data_with_flair !== undefined && !this.props.flairOff) {
+      search = items[0].data_with_flair.search;
+    } else {
+      search = items[0].data.search;
+    }
+
+    let linkToSearch = this.props.headerData.ahrefs.map((item, index) => (
+      <div key={index}>
+        <a href={this.props.headerData.ahrefs[index].link}>
+          {this.props.headerData.ahrefs[index].subject}
+        </a>
+        <br />
+      </div>
+    ));
+
+    return (
+      <div>
         {search !== undefined ? (
-          <div className="alertTableHorizontal">
+          <div
+            className="alertTableHorizontal"
+            style={{
+              outline: "1px solid black",
+              borderRadius: 5,
+              padding: 3,
+              margin: "10px 0 15px"
+            }}
+          >
             {linkToSearch}
             <div dangerouslySetInnerHTML={{ __html: search }} />
           </div>
         ) : null}
       </div>
-    );
-  };
-}
-
-class AlertHeader extends React.Component {
-  render = () => {
-    return <th>{this.props.colName}</th>;
-  };
-}
-
-class AlertBody extends React.Component {
-  constructor(props) {
-    super(props);
-    this.state = {
-      selected: "un-selected",
-      promotedNumber: null,
-      showEntry: false,
-      promoteFetch: false,
-      showAddEntryToolbar: false,
-      showFileUpload: false,
-      showFileUploadToolbar: false,
-      isMounted: false
-    };
-  }
-
-  onClick = event => {
-    if (event.shiftKey === true) {
-      this.props.rowClicked(
-        this.props.data.id,
-        this.props.index,
-        "shift",
-        null
-      );
-    } else if (event.ctrlKey === true || event.metaKey === true) {
-      this.props.rowClicked(
-        this.props.data.id,
-        this.props.index,
-        "ctrl",
-        this.props.data.status
-      );
-    } else {
-      this.props.rowClicked(
-        this.props.data.id,
-        this.props.index,
-        "",
-        this.props.data.status
-      );
-    }
-  };
-
-  toggleEntry = () => {
-    if (this.state.showEntry === false) {
-      this.setState({ showEntry: true });
-    } else {
-      this.setState({ showEntry: false });
-    }
-  };
-
-  toggleOnAddEntry = () => {
-    if (this.state.showAddEntryToolbar === false) {
-      this.setState({ showAddEntryToolbar: true, showEntry: true });
-    }
-  };
-  toggleOffAddEntry = () => {
-    if (this.state.showAddEntryToolbar === true) {
-      this.setState({ showAddEntryToolbar: false });
-      this.props.entryToggle();
-    }
-  };
-
-  toggleFileUpload = () => {
-    if (this.state.showFileUpload === false) {
-      this.setState({ showFileUpload: true });
-    } else {
-      this.setState({ showFileUpload: false });
-    }
-  };
-
-  toggleOnFileUpload = () => {
-    if (this.state.showFileUploadToolbar === false) {
-      this.setState({ showFileUploadToolbar: true, showEntry: true });
-    }
-  };
-
-  toggleOffFileUpload = () => {
-    if (this.state.showFileUploadToolbar === true) {
-      this.setState({ showFileUploadToolbar: false });
-      this.props.fileUploadToggle();
-    }
-  };
-
-  navigateTo = () => {
-    window.open("#/event/" + this.state.promotedNumber);
-  };
-
-  componentDidMount = () => {
-    this.setState({ isMounted: true });
-    if (this.props.data.status === "promoted") {
-      $.ajax({
-        type: "GET",
-        url: "/scot/api/v2/alert/" + this.props.data.id + "/event",
-        success: function(response) {
-          if (this.state.isMounted) {
-            this.setState({ promotedNumber: response.records[0].id });
-          }
-        }.bind(this),
-        error: function(data) {
-          this.props.errorToggle("failed to get promoted id", data);
-        }.bind(this)
-      });
-
-      if (this.state.isMounted) {
-        this.setState({ promoteFetch: true });
-      }
-    }
-    //Pre Selects the alert in an alertgroup if alertPreSelectedId is passed to the component
-    if (this.props.alertPreSelectedId != null) {
-      if (this.props.alertPreSelectedId === this.props.data.id) {
-        this.props.rowClicked(
-          this.props.data.id,
-          this.props.index,
-          "",
-          this.props.data.status
-        );
-      }
-    }
-  };
-
-  componentWillReceiveProps = nextProps => {
-    if (this.state.promoteFetch === false) {
-      if (this.props.data.status === "promoted") {
-        $.ajax({
-          type: "GET",
-          url: "/scot/api/v2/alert/" + this.props.data.id + "/event",
-          success: function(response) {
-            if (this.state.isMounted) {
-              this.setState({ promotedNumber: response.records[0].id });
-            }
-          }.bind(this),
-          error: function(data) {
-            this.props.errorToggle("failed to get promoted id", data);
-          }.bind(this)
-        });
-
-        if (this.state.isMounted) {
-          this.setState({ promoteFetch: true });
-        }
-      }
-    }
-    if (
-      this.props.data.id === this.props.aID &&
-      nextProps.entryToolbar === true &&
-      this.state.showAddEntryToolbar === false
-    ) {
-      this.toggleOnAddEntry();
-    } else if (
-      this.props.data.id !== nextProps.aID &&
-      nextProps.entryToolbar === true &&
-      this.state.showAddEntryToolbar === true
-    ) {
-      this.toggleOffAddEntry();
-    }
-    if (
-      this.props.data.id === this.props.aID &&
-      nextProps.fileUploadToolbar === true &&
-      this.state.showFileUploadToolbar === false
-    ) {
-      this.toggleOnFileUpload();
-    } else if (
-      this.props.data.id !== nextProps.aID &&
-      nextProps.fileUploadToolbar === true &&
-      this.state.showFileUploadToolbar === true
-    ) {
-      this.toggleOffFileUpload();
-    }
-  };
-
-  componentWillUnmount = () => {
-    this.setState({ isMounted: false });
-  };
-
-  render = () => {
-    let data = this.props.data;
-    let dataFlair = this.props.dataFlair;
-    let columns;
-    let selected = "un-selected";
-    let rowReturn = [];
-    let buttonStyle = "";
-    if (data.status === "open") {
-      buttonStyle = "red";
-    } else if (data.status === "closed") {
-      buttonStyle = "green";
-    } else if (data.status === "promoted") {
-      buttonStyle = "warning";
-    }
-
-    if (columns === undefined) {
-      if (data.columns !== undefined) {
-        if (data.columns.length !== 0) {
-          columns = data.columns;
-        }
-      }
-    }
-    if (columns === undefined) {
-      if (data.data !== undefined) {
-        if (data.data.columns !== undefined) {
-          if (data.data.columns.length !== 0) {
-            columns = data.data.columns;
-          }
-        }
-      }
-    }
-    if (columns === undefined) {
-      if (this.props.headerData !== undefined) {
-        if (this.props.headerData.length !== 0) {
-          columns = this.props.headerData.columns;
-        } else {
-          console.log("Error finding columns in JSON");
-        }
-      }
-    }
-
-    for (let i = 0; i < columns.length; i++) {
-      let value = columns[i];
-      rowReturn.push(
-        <AlertRow data={data} dataFlair={dataFlair} value={value} />
-      );
-    }
-    if (this.props.allSelected === false) {
-      for (let j = 0; j < this.props.activeId.length; j++) {
-        if (this.props.activeId[j] === data.id) {
-          selected = "selected";
-        }
-      }
-    } else {
-      selected = "selected";
-    }
-    let id = "alert_" + data.id + "_status";
-    return (
-      <tbody>
-        <tr
-          id={data.id}
-          className={"main " + selected}
-          style={{ cursor: "pointer" }}
-          onMouseUp={this.onClick}
-        >
-          <td style={{ marginRight: "4px" }}>{data.id}</td>
-          <td style={{ marginRight: "4px" }}>
-            {data.status !== "promoted" ? (
-              <span style={{ color: buttonStyle }}>{data.status}</span>
-            ) : (
-              <Button
-                bsSize="xsmall"
-                bsStyle={buttonStyle}
-                id={id}
-                onMouseDown={this.navigateTo}
-                style={{
-                  lineHeight: "12pt",
-                  fontSize: "10pt",
-                  marginLeft: "auto"
-                }}
-              >
-                {data.status}
-              </Button>
-            )}
-          </td>
-          {data.entry_count === 0 ? (
-            <td style={{ marginRight: "4px" }}>{data.entry_count}</td>
-          ) : (
-            <td style={{ marginRight: "4px" }}>
-              <span
-                style={{
-                  color: "blue",
-                  textDecoration: "underline",
-                  cursor: "pointer"
-                }}
-                onMouseDown={this.toggleEntry}
-              >
-                {data.entry_count}
-              </span>
-            </td>
-          )}
-          {rowReturn}
-        </tr>
-        <AlertRowBlank
-          id={data.id}
-          type={"alert"}
-          showEntry={this.state.showEntry}
-          aID={this.props.aID}
-          aType={this.props.aType}
-          updated={this.props.updated}
-          showAddEntryToolbar={this.state.showAddEntryToolbar}
-          toggleOffAddEntry={this.toggleOffAddEntry}
-          showFileUploadToolbar={this.state.showFileUploadToolbar}
-          toggleOffFileUpload={this.toggleOffFileUpload}
-          errorToggle={this.props.errorToggle}
-          createCallback={this.props.createCallback}
-          removeCallback={this.props.removeCallback}
-        />
-      </tbody>
-    );
-  };
-}
-
-class AlertRow extends React.Component {
-  render() {
-    let value = this.props.value;
-    let arr = [];
-    //First condition is for non-flaired items, second is for flaired
-    if (Array.isArray(this.props.dataFlair[value])) {
-      for (let i = 0; i < this.props.dataFlair[value].length; i++) {
-        arr.push(
-          <div
-            dangerouslySetInnerHTML={{
-              __html: $("<div>")
-                .text(this.props.dataFlair[value][i])
-                .html()
-            }}
-          />
-        );
-        arr.push(<br />);
-      }
-    } else {
-      arr.push(
-        <div
-          dangerouslySetInnerHTML={{ __html: this.props.dataFlair[value] }}
-        />
-      );
-    }
-    return (
-      <td style={{ marginRight: "4px" }}>
-        <div className="alert_data_cell">{arr}</div>
-      </td>
-    );
-  }
-}
-
-class AlertRowBlank extends React.Component {
-  render() {
-    let showEntry = this.props.showEntry;
-    let showAddEntryToolbar = this.props.showAddEntryToolbar;
-    let showFileUploadToolbar = this.props.showFileUploadToolbar;
-    let DisplayValue = "none";
-    let arr = [];
-    arr.push(
-      <SelectedEntry
-        type={this.props.type}
-        id={this.props.id}
-        errorToggle={this.props.errorToggle}
-        createCallback={this.props.createCallback}
-        removeCallback={this.props.removeCallback}
-      />
-    );
-    if (showEntry === true) {
-      DisplayValue = "table-row";
-    }
-    return (
-      <tr className="not_selectable" style={{ display: DisplayValue }}>
-        <td colSpan="50">
-          {showEntry ? (
-            <div>
-              {
-                <SelectedEntry
-                  type={this.props.type}
-                  id={this.props.id}
-                  errorToggle={this.props.errorToggle}
-                  createCallback={this.props.createCallback}
-                  removeCallback={this.props.removeCallback}
-                />
-              }
-            </div>
-          ) : null}
-          {showAddEntryToolbar ? (
-            <AddEntry
-              entryAction={"Add"}
-              type={this.props.type}
-              targetid={this.props.id}
-              id={null}
-              addedentry={this.props.toggleOffAddEntry}
-              updated={this.props.updated}
-              errorToggle={this.props.errorToggle}
-            />
-          ) : null}
-          {showFileUploadToolbar ? (
-            <FileUpload
-              type={this.props.aType}
-              targetid={this.props.id}
-              errorToggle={this.props.errorToggle}
-              fileUploadToggle={this.props.toggleOffFileUpload}
-            />
-          ) : null}
-        </td>
-      </tr>
     );
   }
 }
@@ -1333,29 +826,12 @@ class EntryParent extends React.Component {
     };
   }
 
-  componentWillUnmount() {
-    this.props.removeCallback(this.props.items.id);
-  }
-
-  // static getDerivedStateFromProps(nextProps, prevState) {
-  //   if (nextProps.items !== prevState.items) {
-  //     return ({ items: nextProps.items }) // <- this is setState equivalent
-  //   }
-  // }
-
-  // shouldComponentUpdate(nextprops, nextstate) {
-  //   if (nextprops.items.class !== this.props.items.class) {
-  //     return true
-  //   } else {
-  //     return false
-  //   }
+  // componentWillUnmount() {
+  //   this.props.removeCallback(this.props.items.id);
   // }
 
   componentDidMount = () => {
     this.props.createCallback(this.props.items.id, this.refreshButton);
-    // this.setState({ items: this.props.items })
-    // Store.storeKey(this.props.items.id);
-    // Store.addChangeListener(this.refreshButton);
   };
 
   //TODO modify manual entry refresh to be done on automatically based on STOMP single entry update. This works for now.
@@ -1398,18 +874,17 @@ class EntryParent extends React.Component {
   };
 
   reparseFlair = () => {
-    $.ajax({
-      type: "put",
-      url: "/scot/api/v2/entry/" + this.props.items.id,
-      data: JSON.stringify({ parsed: 0 }),
-      contentType: "application/json; charset=UTF-8",
-      success: function() {
+    let reparse_flair_endpoint = `/scot/api/v2/entry/${this.props.items.id}`;
+    let put_response = put_data(reparse_flair_endpoint);
+    put_response
+      .then(function(data) {
         console.log("reparsing started");
-      },
-      error: function(data) {
-        this.props.errorToggle("failed to start reparsing of data", data);
-      }.bind(this)
-    });
+      })
+      .catch(
+        function(data) {
+          this.props.errorToggle("failed to start reparsing of data", data);
+        }.bind(this)
+      );
   };
 
   fileUploadToggle = () => {
@@ -1734,7 +1209,7 @@ class EntryParent extends React.Component {
     let content;
     let iframe = document.getElementById("iframe_" + this.props.items.id);
     if (iframe) {
-      try {
+      if (iframe.contentWindow.getSelection() !== null) {
         content = iframe.contentWindow.getSelection().toString();
         if (this.state.highlightedText !== content) {
           console.log(iframe + " has highlighted text: " + content);
@@ -1742,7 +1217,7 @@ class EntryParent extends React.Component {
         } else {
           return;
         }
-      } catch {
+      } else {
         return;
       }
     }
@@ -1766,19 +1241,19 @@ class EntryAction extends React.Component {
     let url = this.props.datahref;
     let id = this.props.id;
 
-    $.ajax({
-      type: "post",
-      url: url,
-      success: function(response) {
-        this.setState({ [id]: true, disabled: false });
-        console.log("submitted the entry action");
-      }.bind(this),
-      error: function(data) {
-        this.props.errorToggle("failed to submit the entry action", data);
-        this.setState({ disabled: false });
-      }.bind(this)
-    });
-    this.setState({ disabled: true });
+    let post_response = post_data(url, null);
+    post_response
+      .then(
+        function(data) {
+          this.setState({ [id]: true, disabled: false });
+        }.bind(this)
+      )
+      .catch(
+        function(data) {
+          this.props.errorToggle("failed to submit the entry action", data);
+          this.setState({ disabled: false });
+        }.bind(this)
+      );
   };
 
   render = () => {
