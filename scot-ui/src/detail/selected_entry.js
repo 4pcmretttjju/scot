@@ -122,6 +122,7 @@ export default class SelectedEntry extends React.Component {
       type === "alert" ||
       type === "entity" ||
       type === "incident" ||
+      type === "alertgroup" ||
       this.props.isPopUp === 1
     ) {
       const entity_url = `scot/api/v2/${type}/${id}/entity`;
@@ -328,10 +329,10 @@ export default class SelectedEntry extends React.Component {
         if (ListViewTableHeight !== undefined) {
           if (ListViewTableHeight !== 0) {
             scrollHeight =
-              $(window).height() -
+              window.innerHeight -
               ListViewTableHeight -
               $("#header").height() -
-              78;
+              90;
             scrollHeight = scrollHeight + "px";
           } else {
             scrollHeight = $(window).height() - $("#header").height() - 78;
@@ -405,6 +406,7 @@ export default class SelectedEntry extends React.Component {
             entryToggle={this.props.entryToggle}
             subcomponent={this.props.subcomponent}
             setAlertColumns={this.props.setAlertColumns}
+            setEntryEntities={this.props.setEntryEntities}
             {...this.props}
           />
         ) : (
@@ -451,6 +453,7 @@ export default class SelectedEntry extends React.Component {
             errorToggle={this.props.errorToggle}
             createCallback={this.props.createCallback}
             removeCallback={this.props.removeCallback}
+            addFlair={this.props.addFlair}
           />
         ) : null}
         {this.state.linkWarningToolbar ? (
@@ -531,6 +534,7 @@ class EntryIterator extends React.Component {
                 removeCallback={this.props.removeCallback}
                 entityData={entityData}
                 entryToggle={this.props.entryToggle}
+                setEntryEntities={this.props.setEntryEntities}
               />
             );
             key = key + 1;
@@ -619,7 +623,16 @@ class NewAlertTable extends React.Component {
 
   componentDidUpdate(prevProps, prevState) {
     if (prevProps.entityData !== this.props.entityData) {
-      this.setState({ entityData: this.props.entityData });
+      this.setState({
+        entityData: this.props.entityData,
+        columns: buildTypeColumns(
+          "alert",
+          this.state.data,
+          this.props.items,
+          true,
+          this.props.entityData
+        )
+      });
     }
     if (prevState.flairOff !== this.state.flairOff) {
       let data = this.createData();
@@ -652,10 +665,17 @@ class NewAlertTable extends React.Component {
     this.props.items.forEach(
       function(element) {
         let dataitem = {};
-        if (!this.state.flairOff) {
+        if (
+          !this.state.flairOff &&
+          Object.entries(element.data_with_flair).length !== 0
+        ) {
           dataitem = element.data_with_flair;
+          //we have to do this in order to not conflict SCOT status column with Splunk http status columns
+          dataitem["status "] = element.data_with_flair.status;
         } else {
           dataitem = element.data;
+          //we have to do this in order to not conflict SCOT status column with Splunk http status columns
+          dataitem["status "] = element.data.status;
         }
         dataitem["id"] = element.id;
         dataitem["status"] = element.status;
@@ -667,7 +687,7 @@ class NewAlertTable extends React.Component {
   };
 
   render() {
-    const { data, columns } = this.state;
+    const { columns, data } = this.state;
     const { addFlair, type, headerData, entityData, updated } = this.props;
 
     return (
@@ -715,6 +735,13 @@ class NewAlertTable extends React.Component {
           }}
           showPagination={false}
           pageSize={data.length}
+          getTdProps={(state, rowInfo) => {
+            return {
+              style: {
+                maxWidth: "fit-content"
+              }
+            };
+          }}
           getTrProps={(state, rowInfo) => {
             if (
               rowInfo &&
@@ -895,6 +922,23 @@ class EntryParent extends React.Component {
     }
   };
 
+  getEntryEntityData = id => {
+    const entity_url = `scot/api/v2/entry/${id}/entity`;
+    let entity_response = get_data(entity_url, null);
+    entity_response
+      .then(
+        function(response) {
+          let entityResult = response.data.records;
+          this.props.setEntryEntities(entityResult);
+        }.bind(this)
+      )
+      .catch(
+        function(data) {
+          console.log(`Couldnt get entry entity data: ${data}`);
+        }.bind(this)
+      );
+  };
+
   render = () => {
     let itemarr = [];
     let subitemarr = [];
@@ -952,6 +996,7 @@ class EntryParent extends React.Component {
         editEntryToggle={editEntryToggle}
         isPopUp={isPopUp}
         errorToggle={this.props.errorToggle}
+        setEntryEntities={this.props.setEntryEntities}
       />
     );
     for (let prop in items) {
@@ -973,6 +1018,7 @@ class EntryParent extends React.Component {
                       errorToggle={errorToggle}
                       createCallback={this.props.createCallback}
                       removeCallback={this.props.removeCallback}
+                      setEntryEntities={this.props.setEntryEntities}
                     />
                   )
                 )
@@ -1151,6 +1197,14 @@ class EntryParent extends React.Component {
                     tlp={items.tlp}
                     errorToggle={this.props.errorToggle}
                   />
+                  <MenuItem
+                    onClick={() => {
+                      this.getEntryEntityData(items.id);
+                    }}
+                  >
+                    Get entities for Entry
+                  </MenuItem>
+
                   <MenuItem divider />
                   <MenuItem eventKey="2" onClick={this.deleteToggle}>
                     Delete

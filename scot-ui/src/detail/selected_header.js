@@ -45,6 +45,7 @@ export default class SelectedHeader extends React.Component {
       entryData: "",
       showEntityData: false,
       entityData: [],
+      entryEntityData: null,
       entityid: null,
       entitytype: null,
       entityoffset: null,
@@ -75,11 +76,11 @@ export default class SelectedHeader extends React.Component {
     };
   }
 
-  componentWillMount = () => {
+  componentWillMount() {
     this.setState({ loading: true });
-  };
+  }
 
-  componentDidMount = () => {
+  componentDidMount() {
     this.setState({ isMounted: true });
     let delayFunction = {
       delay: function() {
@@ -269,7 +270,7 @@ export default class SelectedHeader extends React.Component {
       }.bind(this)
     };
     InitialAjaxLoad = setTimeout(delayFunction.delay, 400);
-  };
+  }
 
   componentWillUnmount() {
     this.setState({ isMounted: false });
@@ -283,17 +284,12 @@ export default class SelectedHeader extends React.Component {
     }
   }
 
-  componentDidUpdate = () => {
+  componentDidUpdate() {
     //This runs the watcher which handles the entity popup and link warning.
     if (this.state.runWatcher === true) {
       this.Watcher();
     }
-  };
-
-  componentWillReceiveProps = () => {
-    //resets the watcher flag to false. This will only get set to true if a call for entries is made.
-    this.setState({ runWatcher: false });
-  };
+  }
 
   updated = (_type, _message) => {
     this.setState({
@@ -553,7 +549,7 @@ export default class SelectedHeader extends React.Component {
     if (this.state.entitiesToolbar === false) {
       this.setState({ entitiesToolbar: true });
     } else {
-      this.setState({ entitiesToolbar: false });
+      this.setState({ entitiesToolbar: false, entryEntityData: null });
     }
   };
 
@@ -747,6 +743,11 @@ export default class SelectedHeader extends React.Component {
       "alertgroup"
     );
     window.open("#/alertgroup/");
+  };
+
+  setEntryEntities = data => {
+    this.entitiesToggle();
+    this.setState({ entryEntityData: data });
   };
 
   showSignatureOptionsToggle = () => {
@@ -1036,13 +1037,25 @@ export default class SelectedHeader extends React.Component {
                 />
               ) : null}
               {this.state.entitiesToolbar ? (
-                <Entities
-                  entitiesToggle={this.entitiesToggle}
-                  entityData={this.state.entityData}
-                  flairToolbarToggle={this.flairToolbarToggle}
-                  flairToolbarOff={this.flairToolbarOff}
-                />
+                <span>
+                  {this.state.entryEntityData !== null ? (
+                    <Entities
+                      entitiesToggle={this.entitiesToggle}
+                      entityData={this.state.entryEntityData}
+                      flairToolbarToggle={this.flairToolbarToggle}
+                      flairToolbarOff={this.flairToolbarOff}
+                    />
+                  ) : (
+                    <Entities
+                      entitiesToggle={this.entitiesToggle}
+                      entityData={this.state.entityData}
+                      flairToolbarToggle={this.flairToolbarToggle}
+                      flairToolbarOff={this.flairToolbarOff}
+                    />
+                  )}
+                </span>
               ) : null}
+
               {this.state.deleteToolbar ? (
                 <div>
                   {this.state.deleteType !== "alert" ? (
@@ -1168,6 +1181,7 @@ export default class SelectedHeader extends React.Component {
                 handleMultiSelection={this.handleMultiSelection}
                 handleSelectAll={this.handleSelectAll}
                 alertsSelected={this.state.alertsSelected}
+                setEntryEntities={this.setEntryEntities}
               />
             ) : null}
             {this.state.showEventData && type === "entity" ? (
@@ -1182,6 +1196,7 @@ export default class SelectedHeader extends React.Component {
                 linkWarningToggle={this.linkWarningToggle}
                 createCallback={this.props.createCallback}
                 removeCallback={this.props.removeCallback}
+                addFlair={AddFlair.entityUpdate}
               />
             ) : null}
             {this.state.flairToolbar ? (
@@ -1203,6 +1218,7 @@ export default class SelectedHeader extends React.Component {
                 entityobj={this.state.entityobj}
                 createCallback={this.props.createCallback}
                 removeCallback={this.props.removeCallback}
+                addFlair={AddFlair.entityUpdate}
               />
             ) : null}
           </div>
