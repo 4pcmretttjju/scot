@@ -1,2 +1,4 @@
 public/* linguist-generated
 scot-ui/public/* linguist-vendored
+lib/* linguist-language=Perl
+bin/* linguist-language=Perl
