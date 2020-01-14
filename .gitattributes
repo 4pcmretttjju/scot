@@ -1,6 +1,2 @@
 public/* linguist-generated
-scot-ui/public/libs/* linguist-vendored
-scot-ui/public/*.htm* linguist-vendored
-scot-ui/public/libs/sigma.js-1.2.0/examples/*.html linquist-vendored
-scot-ui/public/docs/*.html linguist-vendored
-scot-ui/public/*.js linguist-vendored
+scot-ui/public/* linguist-vendored
