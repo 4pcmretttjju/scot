@@ -1,3 +1,5 @@
 public/* linguist-generated
 scot-ui/public/libs/* linguist-vendoredd
 scot-ui/public/*.htm* linguist-vendoredd
+scot-ui/public/libs/sigma.js-1.2.0/examples/*.html
+scot-ui/public/docs/*.html
