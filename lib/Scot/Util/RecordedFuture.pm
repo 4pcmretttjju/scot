@@ -1,4 +1,4 @@
-package Scot::Util::VirusTotal;
+package Scot::Util::RecordedFuture;
 
 use lib '../../../lib';
 use lib '../lib';
